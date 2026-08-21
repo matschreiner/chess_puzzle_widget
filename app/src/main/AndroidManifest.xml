@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.ChessPuzzleWidget">
+
+        <receiver
+            android:name=".widget.ChessPuzzleWidgetProvider"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/chess_puzzle_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WidgetClickReceiver"
+            android:exported="false" />
+
+        <activity
+            android:name=".auth.OAuthLoginActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.ChessPuzzleWidget" />
+
+        <activity
+            android:name=".auth.ThemeConfigActivity"
+            android:exported="false"
+            android:label="@string/theme_picker_title"
+            android:theme="@style/Theme.ChessPuzzleWidget" />
+
+    </application>
+
+</manifest>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="widget_background">#00000000</color>
+    <color name="status_overlay_background">#CC1B1B1B</color>
+    <color name="status_text_color">#FFFFFFFF</color>
+
+    <color name="board_light_square">#F0D9B5</color>
+    <color name="board_dark_square">#B58863</color>
+    <color name="board_selected_square">#6AADD5</color>
+    <color name="board_last_move_square">#F7EC59</color>
+
+    <color name="piece_white">#FFFFFF</color>
+    <color name="piece_black">#000000</color>
+
+    <color name="restart_button_background">#F04A4A4A</color>
+</resources>

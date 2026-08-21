@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Chess Puzzle Widget</string>
+    <string name="widget_description">Shows your next Lichess puzzle and lets you solve it by tapping squares.</string>
+    <string name="board_content_description">Chess puzzle board</string>
+
+    <string name="status_loading">Loading puzzle…</string>
+    <string name="status_login">Tap to log in with Lichess</string>
+    <string name="status_error">Couldn\'t load puzzle. Tap to retry.</string>
+    <string name="status_solved">Solved! Tap for next puzzle</string>
+    <string name="status_wrong_move">Not quite — try again</string>
+
+    <string name="white_to_move">White to move</string>
+    <string name="black_to_move">Black to move</string>
+
+    <string name="restart_button">Restart</string>
+    <string name="theme_picker_title">Choose puzzle theme</string>
+    <string name="ok_button">OK</string>
+    <string name="settings_gear_symbol">⚙</string>
+    <string name="hint_button">Hint</string>
+    <string name="solution_button">Solution</string>
+    <string name="skip_button">Skip</string>
+
+    <string name="login_activity_title">Log in with Lichess</string>
+    <string name="login_button">Log in with Lichess</string>
+    <string name="login_in_progress">Signing in…</string>
+    <string name="login_failed">Login failed. Please try again.</string>
+</resources>
