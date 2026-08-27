@@ -14,6 +14,7 @@ import android.widget.RemoteViews
 import com.masc.chesspuzzlewidget.R
 import com.masc.chesspuzzlewidget.auth.OAuthLoginActivity
 import com.masc.chesspuzzlewidget.auth.ThemeConfigActivity
+import com.masc.chesspuzzlewidget.engine.FenParser
 import com.masc.chesspuzzlewidget.engine.Position
 import com.masc.chesspuzzlewidget.engine.PuzzleStatus
 import com.masc.chesspuzzlewidget.engine.squareForCell
@@ -105,19 +106,56 @@ object WidgetUpdater {
         }
 
         val flipped = prefs.isFlipped()
-        val hasNextMove = boardState.solutionIndex < boardState.solution.size
-        val nextMove = if (hasNextMove) boardState.solution[boardState.solutionIndex] else null
 
-        val hintSquare = if (prefs.isHintRequested() && nextMove != null) nextMove.from else null
-        val arrowFrom = if (prefs.isSolutionRequested() && nextMove != null) nextMove.from else null
-        val arrowTo = if (prefs.isSolutionRequested() && nextMove != null) nextMove.to else null
+        val historyFens = prefs.historyFens()
+        val liveIndex = historyFens.lastIndex.coerceAtLeast(0)
+        val viewIndex = prefs.historyViewIndex().coerceIn(0, liveIndex)
+        val isBrowsing = viewIndex < liveIndex
 
-        val lastMove = prefs.lastMove()
+        val displayPosition: Position
+        val displayLastMoveFrom: Int?
+        val displayLastMoveTo: Int?
+        var hintSquare: Int? = null
+        var arrowFrom: Int? = null
+        var arrowTo: Int? = null
+
+        if (isBrowsing && historyFens.isNotEmpty()) {
+            displayPosition = FenParser.parse(historyFens[viewIndex])
+            if (viewIndex == 0) {
+                val setup = prefs.setupMove()
+                displayLastMoveFrom = setup?.first
+                displayLastMoveTo = setup?.second
+            } else {
+                val move = prefs.historyMoves().getOrNull(viewIndex - 1)
+                displayLastMoveFrom = move?.first
+                displayLastMoveTo = move?.second
+            }
+        } else {
+            displayPosition = boardState.position
+            val lastMove = prefs.lastMove()
+            displayLastMoveFrom = lastMove?.first
+            displayLastMoveTo = lastMove?.second
+            val hasNextMove = boardState.solutionIndex < boardState.solution.size
+            val nextMove = if (hasNextMove) boardState.solution[boardState.solutionIndex] else null
+            hintSquare = if (prefs.isHintRequested() && nextMove != null) nextMove.from else null
+            arrowFrom = if (prefs.isSolutionRequested() && nextMove != null) nextMove.from else null
+            arrowTo = if (prefs.isSolutionRequested() && nextMove != null) nextMove.to else null
+        }
+
         paintBoardAndHeader(
-            context, views, appWidgetId, boardState.position, boardState.selectedSquare, flipped,
-            lastMoveFrom = lastMove?.first, lastMoveTo = lastMove?.second,
-            hintSquare = hintSquare, arrowFrom = arrowFrom, arrowTo = arrowTo
+            context, views, appWidgetId, displayPosition,
+            selectedSquare = if (isBrowsing) null else boardState.selectedSquare, flipped,
+            lastMoveFrom = displayLastMoveFrom, lastMoveTo = displayLastMoveTo,
+            hintSquare = hintSquare, arrowFrom = arrowFrom, arrowTo = arrowTo,
+            browsingIndex = if (isBrowsing) viewIndex else null, liveIndex = liveIndex
         )
+
+        views.setOnClickPendingIntent(R.id.nav_back_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_NAV_BACK, 69))
+        views.setOnClickPendingIntent(R.id.nav_forward_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_NAV_FORWARD, 70))
+        val activeNavColor = context.getColor(R.color.status_text_color)
+        val disabledNavColor = context.getColor(R.color.nav_button_disabled)
+        views.setTextColor(R.id.nav_back_button, if (viewIndex == 0) disabledNavColor else activeNavColor)
+        views.setTextColor(R.id.nav_forward_button, if (viewIndex == liveIndex) disabledNavColor else activeNavColor)
 
         for (row in 0..7) {
             for (col in 0..7) {
@@ -150,7 +188,7 @@ object WidgetUpdater {
         views.setOnClickPendingIntent(R.id.solution_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_SHOW_SOLUTION, 66))
         views.setOnClickPendingIntent(R.id.skip_button, fetchPuzzlePendingIntent(context, appWidgetId))
 
-        if (boardState.status == PuzzleStatus.SOLVED) {
+        if (boardState.status == PuzzleStatus.SOLVED && !isBrowsing) {
             showStatusOverlay(context, views, showProgress = false, textRes = R.string.status_solved)
             views.setOnClickPendingIntent(
                 R.id.status_overlay,
@@ -179,7 +217,9 @@ object WidgetUpdater {
         lastMoveTo: Int? = null,
         hintSquare: Int? = null,
         arrowFrom: Int? = null,
-        arrowTo: Int? = null
+        arrowTo: Int? = null,
+        browsingIndex: Int? = null,
+        liveIndex: Int = 0
     ) {
         showBoard(views, visible = true)
         val bitmap = BoardRenderer.render(
@@ -196,11 +236,15 @@ object WidgetUpdater {
         )
         views.setImageViewBitmap(R.id.board_image, bitmap)
 
-        val turnText = context.getString(if (position.whiteToMove) R.string.white_to_move else R.string.black_to_move)
         val puzzlePrefs = WidgetPuzzlePrefs(context, appWidgetId)
         val puzzleAngle = puzzlePrefs.puzzleAngle()
-        val rating = puzzlePrefs.rating()
-        val headerParts = listOfNotNull(turnText, PuzzleThemes.labelFor(puzzleAngle), rating.takeIf { it > 0 }?.toString())
+        val headerParts = if (browsingIndex != null) {
+            listOf("Move $browsingIndex/$liveIndex", PuzzleThemes.labelFor(puzzleAngle))
+        } else {
+            val turnText = context.getString(if (position.whiteToMove) R.string.white_to_move else R.string.black_to_move)
+            val rating = puzzlePrefs.rating()
+            listOfNotNull(turnText, PuzzleThemes.labelFor(puzzleAngle), rating.takeIf { it > 0 }?.toString())
+        }
         views.setTextViewText(R.id.header_bar, headerParts.joinToString("  •  "))
         views.setViewVisibility(R.id.header_bar, View.VISIBLE)
         views.setViewVisibility(R.id.footer_bar, View.VISIBLE)

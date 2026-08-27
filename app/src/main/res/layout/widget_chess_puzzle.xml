@@ -630,13 +630,23 @@
         android:visibility="gone">
 
         <TextView
+            android:id="@+id/nav_back_button"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:textColor="@color/status_text_color"
+            android:textSize="10sp"
+            android:text="@string/nav_back_button" />
+
+        <TextView
             android:id="@+id/hint_button"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:gravity="center"
             android:textColor="@color/status_text_color"
-            android:textSize="11sp"
+            android:textSize="10sp"
             android:text="@string/hint_button" />
 
         <TextView
@@ -646,7 +656,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:textColor="@color/status_text_color"
-            android:textSize="11sp"
+            android:textSize="10sp"
             android:text="@string/solution_button" />
 
         <TextView
@@ -656,7 +666,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:textColor="@color/status_text_color"
-            android:textSize="11sp"
+            android:textSize="10sp"
             android:text="@string/restart_button" />
 
         <TextView
@@ -666,8 +676,18 @@
             android:layout_weight="1"
             android:gravity="center"
             android:textColor="@color/status_text_color"
-            android:textSize="11sp"
+            android:textSize="10sp"
             android:text="@string/skip_button" />
+
+        <TextView
+            android:id="@+id/nav_forward_button"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:textColor="@color/status_text_color"
+            android:textSize="10sp"
+            android:text="@string/nav_forward_button" />
 
     </LinearLayout>
 

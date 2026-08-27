@@ -122,6 +122,7 @@ class PuzzleFetchWorker(
                     prefs.clearReveals()
                     prefs.setTainted(false)
                     prefs.setCountedSolve(false)
+                    prefs.resetHistory(fen)
                     prefs.setSetupMove(setupMove?.from, setupMove?.to)
                     if (setupMove != null) prefs.setLastMove(setupMove.from, setupMove.to) else prefs.clearLastMove()
                     prefs.saveBoardState(boardState)

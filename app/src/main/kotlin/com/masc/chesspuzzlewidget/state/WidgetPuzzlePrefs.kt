@@ -241,6 +241,51 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
         prefs.edit().putString(KEY_RECENT_IDS, updated.joinToString(",")).apply()
     }
 
+    /**
+     * The sequence of positions actually reached in the live puzzle attempt (index 0 = the
+     * puzzle's starting FEN), independent of [setLastMove]'s solving state — lets Back/Forward
+     * browse read-only through what's happened so far without touching the live board.
+     */
+    fun historyFens(): List<String> =
+        prefs.getString(KEY_HISTORY_FENS, null)?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
+
+    /** The move that led from history index i to i+1, one entry per ply after index 0. */
+    fun historyMoves(): List<Pair<Int, Int>> =
+        prefs.getString(KEY_HISTORY_MOVES, null)?.split(",")?.filter { it.isNotBlank() }?.map {
+            val (from, to) = it.split(":").map(String::toInt)
+            from to to
+        } ?: emptyList()
+
+    fun resetHistory(startFen: String) {
+        prefs.edit()
+            .putString(KEY_HISTORY_FENS, startFen)
+            .remove(KEY_HISTORY_MOVES)
+            .putInt(KEY_HISTORY_VIEW_INDEX, 0)
+            .apply()
+    }
+
+    fun appendHistory(fen: String, moveFrom: Int, moveTo: Int) {
+        val fens = historyFens() + fen
+        val moves = historyMoves() + (moveFrom to moveTo)
+        prefs.edit()
+            .putString(KEY_HISTORY_FENS, fens.joinToString("|"))
+            .putString(KEY_HISTORY_MOVES, moves.joinToString(",") { "${it.first}:${it.second}" })
+            .putInt(KEY_HISTORY_VIEW_INDEX, fens.lastIndex)
+            .apply()
+    }
+
+    fun historyViewIndex(): Int = prefs.getInt(KEY_HISTORY_VIEW_INDEX, 0)
+
+    fun setHistoryViewIndex(index: Int) {
+        prefs.edit().putInt(KEY_HISTORY_VIEW_INDEX, index).apply()
+    }
+
+    fun isBrowsingHistory(): Boolean = historyViewIndex() < historyFens().lastIndex.coerceAtLeast(0)
+
+    fun snapHistoryToLive() {
+        setHistoryViewIndex(historyFens().lastIndex.coerceAtLeast(0))
+    }
+
     fun clearStagedPuzzle() {
         prefs.edit()
             .remove(KEY_STAGED_ID)
@@ -278,6 +323,9 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
         private const val KEY_SOLUTION_REQUESTED = "solution_requested"
         private const val KEY_TAINTED = "tainted"
         private const val KEY_COUNTED_SOLVE = "counted_solve"
+        private const val KEY_HISTORY_FENS = "history_fens"
+        private const val KEY_HISTORY_MOVES = "history_moves"
+        private const val KEY_HISTORY_VIEW_INDEX = "history_view_index"
         private const val KEY_STAGED_ID = "staged_id"
         private const val KEY_STAGED_FEN = "staged_fen"
         private const val KEY_STAGED_SOLUTION = "staged_solution"

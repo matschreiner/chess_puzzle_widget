@@ -22,6 +22,8 @@
     <string name="hint_button">Hint</string>
     <string name="solution_button">Solution</string>
     <string name="skip_button">Skip</string>
+    <string name="nav_back_button">Back</string>
+    <string name="nav_forward_button">Fwd</string>
 
     <string name="login_activity_title">Log in with Lichess</string>
     <string name="login_button">Log in with Lichess</string>

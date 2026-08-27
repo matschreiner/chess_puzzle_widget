@@ -87,6 +87,7 @@ class ChessPuzzleWidgetProvider : AppWidgetProvider() {
             prefs.setOriginalFen(staged.fen)
             prefs.setFlipped(!boardState.position.whiteToMove)
             prefs.clearReveals()
+            prefs.resetHistory(staged.fen)
             prefs.setSetupMove(staged.setupMoveFrom, staged.setupMoveTo)
             if (staged.setupMoveFrom != null && staged.setupMoveTo != null) {
                 prefs.setLastMove(staged.setupMoveFrom, staged.setupMoveTo)

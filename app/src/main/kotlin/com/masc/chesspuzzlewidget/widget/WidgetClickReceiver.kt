@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.masc.chesspuzzlewidget.engine.FenParser
 import com.masc.chesspuzzlewidget.engine.Position
 import com.masc.chesspuzzlewidget.engine.PuzzleBoardState
 import com.masc.chesspuzzlewidget.engine.PuzzleStatus
@@ -24,6 +25,7 @@ class WidgetClickReceiver : BroadcastReceiver() {
             ACTION_FETCH_PUZZLE -> ChessPuzzleWidgetProvider.requestNextPuzzle(context, appWidgetId)
             ACTION_HINT -> {
                 val prefs = WidgetPuzzlePrefs(context, appWidgetId)
+                prefs.snapHistoryToLive()
                 prefs.setSolutionRequested(false)
                 prefs.setHintRequested(true)
                 prefs.setTainted(true)
@@ -31,12 +33,24 @@ class WidgetClickReceiver : BroadcastReceiver() {
             }
             ACTION_SHOW_SOLUTION -> {
                 val prefs = WidgetPuzzlePrefs(context, appWidgetId)
+                prefs.snapHistoryToLive()
                 prefs.setHintRequested(false)
                 prefs.setSolutionRequested(true)
                 prefs.setTainted(true)
                 WidgetUpdater.render(context, appWidgetId)
             }
             ACTION_RESTART -> handleRestart(context, appWidgetId)
+            ACTION_NAV_BACK -> {
+                val prefs = WidgetPuzzlePrefs(context, appWidgetId)
+                prefs.setHistoryViewIndex((prefs.historyViewIndex() - 1).coerceAtLeast(0))
+                WidgetUpdater.render(context, appWidgetId)
+            }
+            ACTION_NAV_FORWARD -> {
+                val prefs = WidgetPuzzlePrefs(context, appWidgetId)
+                val lastIndex = prefs.historyFens().lastIndex.coerceAtLeast(0)
+                prefs.setHistoryViewIndex((prefs.historyViewIndex() + 1).coerceAtMost(lastIndex))
+                WidgetUpdater.render(context, appWidgetId)
+            }
         }
     }
 
@@ -47,6 +61,7 @@ class WidgetClickReceiver : BroadcastReceiver() {
 
         val restarted = PuzzleBoardState.fromFen(originalFen, current.solution.map { it.toString() })
         prefs.clearReveals()
+        prefs.resetHistory(originalFen)
         val setupMove = prefs.setupMove()
         if (setupMove != null) prefs.setLastMove(setupMove.first, setupMove.second) else prefs.clearLastMove()
         prefs.saveBoardState(restarted)
@@ -58,6 +73,15 @@ class WidgetClickReceiver : BroadcastReceiver() {
         if (square == -1) return
 
         val prefs = WidgetPuzzlePrefs(context, appWidgetId)
+
+        // Tapping anywhere while browsing history just snaps back to the live position — the
+        // browsed positions are read-only, so a tap here can't be a real move attempt.
+        if (prefs.isBrowsingHistory()) {
+            prefs.snapHistoryToLive()
+            WidgetUpdater.render(context, appWidgetId)
+            return
+        }
+
         prefs.clearReveals()
         val before = prefs.loadBoardState() ?: return
         val fromSquare = before.selectedSquare
@@ -84,6 +108,7 @@ class WidgetClickReceiver : BroadcastReceiver() {
             val afterUserMove = before.applyUserMove(expectedMove)
             prefs.setLastMove(expectedMove.from, expectedMove.to)
             prefs.saveBoardState(afterUserMove)
+            prefs.appendHistory(FenParser.toFen(afterUserMove.position), expectedMove.from, expectedMove.to)
 
             if (afterUserMove.status == PuzzleStatus.SOLVED) {
                 confirmSolvedIfKnown(context, appWidgetId, prefs, win = true)
@@ -108,6 +133,7 @@ class WidgetClickReceiver : BroadcastReceiver() {
                 val afterReply = afterUserMove.applyAutoReply()
                 prefs.setLastMove(replyMove.from, replyMove.to)
                 prefs.saveBoardState(afterReply)
+                prefs.appendHistory(FenParser.toFen(afterReply.position), replyMove.from, replyMove.to)
                 if (afterReply.status == PuzzleStatus.SOLVED) {
                     confirmSolvedIfKnown(context, appWidgetId, prefs, win = true)
                     Log.d(TAG, "solved(afterReply) puzzleId=${prefs.puzzleId()} tainted=${prefs.isTainted()} counted=${prefs.hasCountedSolve()}")
@@ -159,6 +185,8 @@ class WidgetClickReceiver : BroadcastReceiver() {
         const val ACTION_HINT = "com.masc.chesspuzzlewidget.action.HINT"
         const val ACTION_SHOW_SOLUTION = "com.masc.chesspuzzlewidget.action.SHOW_SOLUTION"
         const val ACTION_RESTART = "com.masc.chesspuzzlewidget.action.RESTART"
+        const val ACTION_NAV_BACK = "com.masc.chesspuzzlewidget.action.NAV_BACK"
+        const val ACTION_NAV_FORWARD = "com.masc.chesspuzzlewidget.action.NAV_FORWARD"
         const val EXTRA_APPWIDGET_ID = "extra_appwidget_id"
         const val EXTRA_SQUARE = "extra_square"
         private const val MOVE_PAUSE_MS = 500L
