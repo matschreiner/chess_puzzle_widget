@@ -12,6 +12,7 @@ object PuzzleThemes {
         "sacrifice" to "Sacrifice",
         "deflection" to "Deflection",
         "attraction" to "Attraction",
+        "capturingDefender" to "Capture the Defender",
         "xRayAttack" to "X-Ray Attack",
         "hangingPiece" to "Hanging Piece",
         "trappedPiece" to "Trapped Piece",

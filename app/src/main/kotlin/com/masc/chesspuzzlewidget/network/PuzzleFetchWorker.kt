@@ -75,13 +75,14 @@ class PuzzleFetchWorker(
             }
 
             val angle = prefs.selectedAngles().random()
+            val difficulty = prefs.difficulty()
             val recentIds = prefs.recentPuzzleIds()
             val client = LichessApiClient()
             val puzzle = try {
-                var candidate = client.getNextPuzzle(accessToken, angle = angle)
+                var candidate = client.getNextPuzzle(accessToken, angle = angle, difficulty = difficulty)
                 var attempt = 1
                 while (candidate.puzzle.id in recentIds && attempt < MAX_DUPLICATE_RETRIES) {
-                    candidate = client.getNextPuzzle(accessToken, angle = angle)
+                    candidate = client.getNextPuzzle(accessToken, angle = angle, difficulty = difficulty)
                     attempt++
                 }
                 candidate
@@ -107,6 +108,7 @@ class PuzzleFetchWorker(
                 if (stageOnly) {
                     prefs.saveStagedPuzzle(
                         puzzle.puzzle.id, fen, puzzle.puzzle.solution, puzzle.puzzle.themes, angle,
+                        rating = puzzle.puzzle.rating,
                         setupMoveFrom = setupMove?.from, setupMoveTo = setupMove?.to
                     )
                 } else {
@@ -114,9 +116,12 @@ class PuzzleFetchWorker(
                     prefs.setThemes(puzzle.puzzle.themes)
                     prefs.setPuzzleId(puzzle.puzzle.id)
                     prefs.setPuzzleAngle(angle)
+                    prefs.setRating(puzzle.puzzle.rating)
                     prefs.setOriginalFen(fen)
                     prefs.setFlipped(!boardState.position.whiteToMove)
                     prefs.clearReveals()
+                    prefs.setTainted(false)
+                    prefs.setCountedSolve(false)
                     prefs.setSetupMove(setupMove?.from, setupMove?.to)
                     if (setupMove != null) prefs.setLastMove(setupMove.from, setupMove.to) else prefs.clearLastMove()
                     prefs.saveBoardState(boardState)

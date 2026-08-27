@@ -596,6 +596,18 @@
         android:visibility="gone" />
 
     <TextView
+        android:id="@+id/daily_counter"
+        android:layout_width="32dp"
+        android:layout_height="28dp"
+        android:layout_gravity="top|start"
+        android:layout_marginStart="8dp"
+        android:gravity="center"
+        android:textColor="@color/status_text_color"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <TextView
         android:id="@+id/settings_gear"
         android:layout_width="32dp"
         android:layout_height="28dp"

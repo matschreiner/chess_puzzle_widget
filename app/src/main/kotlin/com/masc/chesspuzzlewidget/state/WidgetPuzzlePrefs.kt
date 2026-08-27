@@ -71,6 +71,12 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
 
     fun puzzleId(): String? = prefs.getString(KEY_PUZZLE_ID, null)
 
+    fun setRating(rating: Int) {
+        prefs.edit().putInt(KEY_RATING, rating).apply()
+    }
+
+    fun rating(): Int = prefs.getInt(KEY_RATING, 0)
+
     /** The set of Lichess puzzle themes ("angles") the user wants — one is picked at random per fetch. */
     fun setSelectedAngles(angles: Set<String>) {
         prefs.edit().putString(KEY_ANGLES, angles.joinToString(",")).apply()
@@ -80,6 +86,13 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
         val stored = prefs.getString(KEY_ANGLES, null)?.split(",")?.filter { it.isNotBlank() }?.toSet()
         return if (stored.isNullOrEmpty()) setOf(DEFAULT_ANGLE) else stored
     }
+
+    /** Puzzle difficulty relative to the user's own puzzle rating (Lichess's `difficulty` param). */
+    fun setDifficulty(difficulty: String) {
+        prefs.edit().putString(KEY_DIFFICULTY, difficulty).apply()
+    }
+
+    fun difficulty(): String = prefs.getString(KEY_DIFFICULTY, null) ?: PuzzleDifficulty.DEFAULT
 
     /** The angle the currently active puzzle was actually fetched with (for confirming its result later). */
     fun setPuzzleAngle(angle: String) {
@@ -151,6 +164,28 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
             .apply()
     }
 
+    /**
+     * Whether the current puzzle has had a hint/solution reveal or a wrong move attempt — once
+     * true it stays true for the rest of this puzzle (even across Restart) so it can't be "solved
+     * cleanly" after the fact. Only cleared when a genuinely new puzzle is fetched.
+     */
+    fun setTainted(tainted: Boolean) {
+        prefs.edit().putBoolean(KEY_TAINTED, tainted).apply()
+    }
+
+    fun isTainted(): Boolean = prefs.getBoolean(KEY_TAINTED, false)
+
+    /**
+     * Whether this puzzle has already counted toward the daily solved-count — restarting and
+     * solving the same puzzle again must not double-count it. Only cleared when a genuinely new
+     * puzzle is fetched, just like [isTainted].
+     */
+    fun setCountedSolve(counted: Boolean) {
+        prefs.edit().putBoolean(KEY_COUNTED_SOLVE, counted).apply()
+    }
+
+    fun hasCountedSolve(): Boolean = prefs.getBoolean(KEY_COUNTED_SOLVE, false)
+
     /** A puzzle fetched ahead of time in the background, ready to swap in instantly on skip/solve. */
     data class StagedPuzzle(
         val id: String,
@@ -158,6 +193,7 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
         val solution: List<String>,
         val themes: List<String>,
         val angle: String,
+        val rating: Int,
         val setupMoveFrom: Int?,
         val setupMoveTo: Int?
     )
@@ -168,6 +204,7 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
         solution: List<String>,
         themes: List<String>,
         angle: String,
+        rating: Int = 0,
         setupMoveFrom: Int? = null,
         setupMoveTo: Int? = null
     ) {
@@ -177,6 +214,7 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
             .putString(KEY_STAGED_SOLUTION, solution.joinToString(","))
             .putString(KEY_STAGED_THEMES, themes.joinToString(","))
             .putString(KEY_STAGED_ANGLE, angle)
+            .putInt(KEY_STAGED_RATING, rating)
             .putInt(KEY_STAGED_SETUP_FROM, setupMoveFrom ?: -1)
             .putInt(KEY_STAGED_SETUP_TO, setupMoveTo ?: -1)
             .apply()
@@ -186,11 +224,12 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
         val id = prefs.getString(KEY_STAGED_ID, null) ?: return null
         val fen = prefs.getString(KEY_STAGED_FEN, null) ?: return null
         val angle = prefs.getString(KEY_STAGED_ANGLE, null) ?: DEFAULT_ANGLE
+        val rating = prefs.getInt(KEY_STAGED_RATING, 0)
         val setupFrom = prefs.getInt(KEY_STAGED_SETUP_FROM, -1).takeIf { it >= 0 }
         val setupTo = prefs.getInt(KEY_STAGED_SETUP_TO, -1).takeIf { it >= 0 }
         val solution = prefs.getString(KEY_STAGED_SOLUTION, "")!!.split(",").filter { it.isNotBlank() }
         val themes = prefs.getString(KEY_STAGED_THEMES, "")!!.split(",").filter { it.isNotBlank() }
-        return StagedPuzzle(id, fen, solution, themes, angle, setupFrom, setupTo)
+        return StagedPuzzle(id, fen, solution, themes, angle, rating, setupFrom, setupTo)
     }
 
     /** Tracks recently served puzzle ids so a same-again response from Lichess can be detected and retried. */
@@ -209,6 +248,7 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
             .remove(KEY_STAGED_SOLUTION)
             .remove(KEY_STAGED_THEMES)
             .remove(KEY_STAGED_ANGLE)
+            .remove(KEY_STAGED_RATING)
             .remove(KEY_STAGED_SETUP_FROM)
             .remove(KEY_STAGED_SETUP_TO)
             .apply()
@@ -223,7 +263,9 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
         private const val KEY_LAST_ERROR = "last_error"
         private const val KEY_THEMES = "themes"
         private const val KEY_PUZZLE_ID = "puzzle_id"
+        private const val KEY_RATING = "rating"
         private const val KEY_ANGLES = "puzzle_angles"
+        private const val KEY_DIFFICULTY = "puzzle_difficulty"
         private const val KEY_PUZZLE_ANGLE = "active_puzzle_angle"
         const val DEFAULT_ANGLE = "pin"
         private const val KEY_ORIGINAL_FEN = "original_fen"
@@ -234,11 +276,14 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
         private const val KEY_FLIPPED = "flipped"
         private const val KEY_HINT = "hint_requested"
         private const val KEY_SOLUTION_REQUESTED = "solution_requested"
+        private const val KEY_TAINTED = "tainted"
+        private const val KEY_COUNTED_SOLVE = "counted_solve"
         private const val KEY_STAGED_ID = "staged_id"
         private const val KEY_STAGED_FEN = "staged_fen"
         private const val KEY_STAGED_SOLUTION = "staged_solution"
         private const val KEY_STAGED_THEMES = "staged_themes"
         private const val KEY_STAGED_ANGLE = "staged_angle"
+        private const val KEY_STAGED_RATING = "staged_rating"
         private const val KEY_STAGED_SETUP_FROM = "staged_setup_from"
         private const val KEY_STAGED_SETUP_TO = "staged_setup_to"
         private const val KEY_RECENT_IDS = "recent_puzzle_ids"

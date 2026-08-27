@@ -18,6 +18,7 @@ import com.masc.chesspuzzlewidget.engine.Position
 import com.masc.chesspuzzlewidget.engine.PuzzleStatus
 import com.masc.chesspuzzlewidget.engine.squareForCell
 import com.masc.chesspuzzlewidget.render.BoardRenderer
+import com.masc.chesspuzzlewidget.state.PuzzleStatsPrefs
 import com.masc.chesspuzzlewidget.state.PuzzleThemes
 import com.masc.chesspuzzlewidget.state.WidgetPuzzlePrefs
 import com.masc.chesspuzzlewidget.state.WidgetStatus
@@ -127,6 +128,9 @@ object WidgetUpdater {
             }
         }
 
+        views.setTextViewText(R.id.daily_counter, PuzzleStatsPrefs(context).todayCount().toString())
+        views.setViewVisibility(R.id.daily_counter, View.VISIBLE)
+
         views.setViewVisibility(R.id.settings_gear, View.VISIBLE)
         val themeConfigIntent = Intent(context, ThemeConfigActivity::class.java).apply {
             putExtra(WidgetClickReceiver.EXTRA_APPWIDGET_ID, appWidgetId)
@@ -195,7 +199,8 @@ object WidgetUpdater {
         val turnText = context.getString(if (position.whiteToMove) R.string.white_to_move else R.string.black_to_move)
         val puzzlePrefs = WidgetPuzzlePrefs(context, appWidgetId)
         val puzzleAngle = puzzlePrefs.puzzleAngle()
-        val headerParts = listOf(turnText, PuzzleThemes.labelFor(puzzleAngle))
+        val rating = puzzlePrefs.rating()
+        val headerParts = listOfNotNull(turnText, PuzzleThemes.labelFor(puzzleAngle), rating.takeIf { it > 0 }?.toString())
         views.setTextViewText(R.id.header_bar, headerParts.joinToString("  •  "))
         views.setViewVisibility(R.id.header_bar, View.VISIBLE)
         views.setViewVisibility(R.id.footer_bar, View.VISIBLE)

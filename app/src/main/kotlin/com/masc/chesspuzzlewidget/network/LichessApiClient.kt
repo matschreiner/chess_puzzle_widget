@@ -17,9 +17,16 @@ class LichessApiClient(
     private val json: Json = Json { ignoreUnknownKeys = true }
 ) {
 
-    suspend fun getNextPuzzle(accessToken: String, angle: String? = null): PuzzleAndGameDto = withContext(Dispatchers.IO) {
+    suspend fun getNextPuzzle(
+        accessToken: String,
+        angle: String? = null,
+        difficulty: String? = null
+    ): PuzzleAndGameDto = withContext(Dispatchers.IO) {
         val url = "https://lichess.org/api/puzzle/next".toHttpUrl().newBuilder()
-            .apply { if (angle != null) addQueryParameter("angle", angle) }
+            .apply {
+                if (angle != null) addQueryParameter("angle", angle)
+                if (difficulty != null) addQueryParameter("difficulty", difficulty)
+            }
             .build()
         val request = Request.Builder()
             .url(url)

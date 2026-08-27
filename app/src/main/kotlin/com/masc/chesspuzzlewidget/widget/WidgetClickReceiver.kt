@@ -9,6 +9,7 @@ import android.util.Log
 import com.masc.chesspuzzlewidget.engine.Position
 import com.masc.chesspuzzlewidget.engine.PuzzleBoardState
 import com.masc.chesspuzzlewidget.engine.PuzzleStatus
+import com.masc.chesspuzzlewidget.state.PuzzleStatsPrefs
 import com.masc.chesspuzzlewidget.state.WidgetPuzzlePrefs
 
 /** Receives taps on the widget's 64 overlay cells and its "fetch puzzle" targets. */
@@ -25,12 +26,14 @@ class WidgetClickReceiver : BroadcastReceiver() {
                 val prefs = WidgetPuzzlePrefs(context, appWidgetId)
                 prefs.setSolutionRequested(false)
                 prefs.setHintRequested(true)
+                prefs.setTainted(true)
                 WidgetUpdater.render(context, appWidgetId)
             }
             ACTION_SHOW_SOLUTION -> {
                 val prefs = WidgetPuzzlePrefs(context, appWidgetId)
                 prefs.setHintRequested(false)
                 prefs.setSolutionRequested(true)
+                prefs.setTainted(true)
                 WidgetUpdater.render(context, appWidgetId)
             }
             ACTION_RESTART -> handleRestart(context, appWidgetId)
@@ -84,6 +87,12 @@ class WidgetClickReceiver : BroadcastReceiver() {
 
             if (afterUserMove.status == PuzzleStatus.SOLVED) {
                 confirmSolvedIfKnown(context, appWidgetId, prefs, win = true)
+                Log.d(TAG, "solved(immediate) puzzleId=${prefs.puzzleId()} tainted=${prefs.isTainted()} counted=${prefs.hasCountedSolve()}")
+                if (!prefs.isTainted() && !prefs.hasCountedSolve()) {
+                    PuzzleStatsPrefs(context).recordPerfectSolve()
+                    prefs.setCountedSolve(true)
+                    Log.d(TAG, "recordPerfectSolve called, new todayCount=${PuzzleStatsPrefs(context).todayCount()}")
+                }
                 WidgetUpdater.render(context, appWidgetId)
                 return
             }
@@ -101,6 +110,12 @@ class WidgetClickReceiver : BroadcastReceiver() {
                 prefs.saveBoardState(afterReply)
                 if (afterReply.status == PuzzleStatus.SOLVED) {
                     confirmSolvedIfKnown(context, appWidgetId, prefs, win = true)
+                    Log.d(TAG, "solved(afterReply) puzzleId=${prefs.puzzleId()} tainted=${prefs.isTainted()} counted=${prefs.hasCountedSolve()}")
+                    if (!prefs.isTainted() && !prefs.hasCountedSolve()) {
+                        PuzzleStatsPrefs(context).recordPerfectSolve()
+                        prefs.setCountedSolve(true)
+                        Log.d(TAG, "recordPerfectSolve called, new todayCount=${PuzzleStatsPrefs(context).todayCount()}")
+                    }
                 }
                 WidgetUpdater.render(context, appWidgetId)
                 pendingResult.finish()
@@ -116,6 +131,7 @@ class WidgetClickReceiver : BroadcastReceiver() {
         }
 
         // Legal move, just not the solution: show it landing on the tapped square, pause, then revert.
+        prefs.setTainted(true)
         WidgetUpdater.renderTransientPosition(context, appWidgetId, cosmeticMove(before.position, fromSquare, square), flipped)
         val pendingResult = goAsync()
         Handler(Looper.getMainLooper()).postDelayed({
@@ -146,5 +162,6 @@ class WidgetClickReceiver : BroadcastReceiver() {
         const val EXTRA_APPWIDGET_ID = "extra_appwidget_id"
         const val EXTRA_SQUARE = "extra_square"
         private const val MOVE_PAUSE_MS = 500L
+        private const val TAG = "WidgetClickReceiver"
     }
 }

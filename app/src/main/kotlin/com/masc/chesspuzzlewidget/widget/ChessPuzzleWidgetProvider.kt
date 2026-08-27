@@ -6,8 +6,11 @@ import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
 import androidx.work.Data
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 import com.masc.chesspuzzlewidget.engine.PuzzleBoardState
 import com.masc.chesspuzzlewidget.engine.PuzzleStatus
 import com.masc.chesspuzzlewidget.network.PuzzleFetchWorker
@@ -18,6 +21,11 @@ class ChessPuzzleWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         appWidgetIds.forEach { appWidgetId -> refreshWidget(context, appWidgetId) }
+        schedulePeriodicRefresh(context)
+    }
+
+    override fun onEnabled(context: Context) {
+        schedulePeriodicRefresh(context)
     }
 
     override fun onAppWidgetOptionsChanged(
@@ -75,6 +83,7 @@ class ChessPuzzleWidgetProvider : AppWidgetProvider() {
             prefs.setThemes(staged.themes)
             prefs.setPuzzleId(staged.id)
             prefs.setPuzzleAngle(staged.angle)
+            prefs.setRating(staged.rating)
             prefs.setOriginalFen(staged.fen)
             prefs.setFlipped(!boardState.position.whiteToMove)
             prefs.clearReveals()
@@ -128,6 +137,20 @@ class ChessPuzzleWidgetProvider : AppWidgetProvider() {
                 )
                 .build()
             WorkManager.getInstance(context).enqueue(request)
+        }
+
+        /**
+         * Repaints every placed widget every 15 minutes (WorkManager's minimum periodic interval) with no
+         * network I/O, so date-dependent UI (the daily solved counter) rolls over to a new day's value on
+         * its own instead of waiting for the user to interact with the widget after midnight.
+         */
+        private fun schedulePeriodicRefresh(context: Context) {
+            val request = PeriodicWorkRequestBuilder<WidgetRefreshWorker>(15, TimeUnit.MINUTES).build()
+            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                "widget_periodic_refresh",
+                ExistingPeriodicWorkPolicy.KEEP,
+                request
+            )
         }
 
         /** Called after a successful login so every already-placed widget picks up a puzzle immediately. */

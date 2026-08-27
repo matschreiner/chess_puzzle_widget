@@ -1,5 +1,6 @@
 package com.masc.chesspuzzlewidget.auth
 
+import android.graphics.Color
 import android.os.Bundle
 import android.text.SpannableString
 import android.text.style.RelativeSizeSpan
@@ -8,6 +9,7 @@ import android.widget.TextView
 import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
 import com.masc.chesspuzzlewidget.R
+import com.masc.chesspuzzlewidget.state.PuzzleDifficulty
 import com.masc.chesspuzzlewidget.state.PuzzleThemes
 import com.masc.chesspuzzlewidget.state.WidgetPuzzlePrefs
 import com.masc.chesspuzzlewidget.widget.ChessPuzzleWidgetProvider
@@ -29,6 +31,10 @@ class ThemeConfigActivity : AppCompatActivity() {
     private lateinit var prefs: WidgetPuzzlePrefs
     private val selected = mutableSetOf<String>()
     private val rows = mutableMapOf<String, TextView>()
+    private var selectedDifficulty = PuzzleDifficulty.DEFAULT
+    private val difficultyRows = mutableMapOf<String, TextView>()
+    private lateinit var tabDifficulty: TextView
+    private lateinit var tabTheme: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,8 +48,26 @@ class ThemeConfigActivity : AppCompatActivity() {
 
         prefs = WidgetPuzzlePrefs(this, appWidgetId)
         selected += prefs.selectedAngles()
+        selectedDifficulty = prefs.difficulty()
 
-        val container = findViewById<LinearLayout>(R.id.theme_list_container)
+        val difficultyPage = findViewById<LinearLayout>(R.id.difficulty_page)
+        for ((value, _) in PuzzleDifficulty.ALL) {
+            val row = TextView(this).apply {
+                textSize = 16f
+                setPadding(24, 28, 24, 28)
+                isClickable = true
+                isFocusable = true
+                val outValue = android.util.TypedValue()
+                theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
+                setBackgroundResource(outValue.resourceId)
+                setOnClickListener { onSelectDifficulty(value) }
+            }
+            difficultyRows[value] = row
+            difficultyPage.addView(row)
+        }
+        refreshDifficultyRows()
+
+        val themePage = findViewById<LinearLayout>(R.id.theme_page)
         for ((angle, _) in PuzzleThemes.ALL) {
             val row = TextView(this).apply {
                 textSize = 16f
@@ -56,11 +80,46 @@ class ThemeConfigActivity : AppCompatActivity() {
                 setOnClickListener { onToggle(angle) }
             }
             rows[angle] = row
-            container.addView(row)
+            themePage.addView(row)
         }
         refreshAllRows()
 
+        tabDifficulty = findViewById(R.id.tab_difficulty)
+        tabTheme = findViewById(R.id.tab_theme)
+        tabDifficulty.setOnClickListener { showPage(isDifficultyPage = true) }
+        tabTheme.setOnClickListener { showPage(isDifficultyPage = false) }
+        showPage(isDifficultyPage = true)
+
         findViewById<Button>(R.id.ok_button).setOnClickListener { finish() }
+    }
+
+    private fun showPage(isDifficultyPage: Boolean) {
+        findViewById<LinearLayout>(R.id.difficulty_page).visibility =
+            if (isDifficultyPage) android.view.View.VISIBLE else android.view.View.GONE
+        findViewById<LinearLayout>(R.id.theme_page).visibility =
+            if (isDifficultyPage) android.view.View.GONE else android.view.View.VISIBLE
+
+        val activeColor = Color.WHITE
+        val inactiveColor = Color.parseColor("#80FFFFFF")
+        tabDifficulty.setTextColor(if (isDifficultyPage) activeColor else inactiveColor)
+        tabTheme.setTextColor(if (isDifficultyPage) inactiveColor else activeColor)
+    }
+
+    private fun onSelectDifficulty(value: String) {
+        selectedDifficulty = value
+        refreshDifficultyRows()
+        prefs.setDifficulty(value)
+    }
+
+    private fun refreshDifficultyRows() {
+        for ((value, label) in PuzzleDifficulty.ALL) {
+            val row = difficultyRows[value] ?: continue
+            val bullet = if (value == selectedDifficulty) "●" else "○"
+            val text = "$bullet  $label"
+            row.text = SpannableString(text).apply {
+                setSpan(RelativeSizeSpan(1.5f), 0, 1, SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
     }
 
     private fun onToggle(angle: String) {
