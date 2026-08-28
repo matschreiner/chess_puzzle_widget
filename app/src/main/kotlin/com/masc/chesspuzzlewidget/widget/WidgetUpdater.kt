@@ -152,10 +152,8 @@ object WidgetUpdater {
 
         views.setOnClickPendingIntent(R.id.nav_back_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_NAV_BACK, 69))
         views.setOnClickPendingIntent(R.id.nav_forward_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_NAV_FORWARD, 70))
-        val activeNavColor = context.getColor(R.color.status_text_color)
-        val disabledNavColor = context.getColor(R.color.nav_button_disabled)
-        views.setTextColor(R.id.nav_back_button, if (viewIndex == 0) disabledNavColor else activeNavColor)
-        views.setTextColor(R.id.nav_forward_button, if (viewIndex == liveIndex) disabledNavColor else activeNavColor)
+        views.setImageViewBitmap(R.id.nav_back_button, buildTriangleIconBitmap(context, pointingRight = false, dimmed = viewIndex == 0))
+        views.setImageViewBitmap(R.id.nav_forward_button, buildTriangleIconBitmap(context, pointingRight = true, dimmed = viewIndex == liveIndex))
 
         for (row in 0..7) {
             for (col in 0..7) {
@@ -183,6 +181,7 @@ object WidgetUpdater {
             )
         )
 
+        views.setImageViewBitmap(R.id.restart_button, buildRestartIconBitmap(context, withBackground = false))
         views.setOnClickPendingIntent(R.id.restart_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_RESTART, 67))
         views.setOnClickPendingIntent(R.id.hint_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_HINT, 65))
         views.setOnClickPendingIntent(R.id.solution_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_SHOW_SOLUTION, 66))
@@ -255,20 +254,22 @@ object WidgetUpdater {
      * Unicode glyph in a TextView — font glyphs for symbols like "↺" aren't reliably centered
      * within their own bounding box across devices/fonts, so this guarantees true pixel centering.
      */
-    private fun buildRestartIconBitmap(context: Context): Bitmap {
+    private fun buildRestartIconBitmap(context: Context, withBackground: Boolean = true): Bitmap {
         val sizePx = 132
         val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val cx = sizePx / 2f
         val cy = sizePx / 2f
 
-        val circleColor = context.getColor(R.color.restart_button_background)
         val arrowColor = context.getColor(R.color.status_text_color)
 
-        canvas.drawCircle(cx, cy, sizePx / 2f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = circleColor
-            style = Paint.Style.FILL
-        })
+        if (withBackground) {
+            val circleColor = context.getColor(R.color.restart_button_background)
+            canvas.drawCircle(cx, cy, sizePx / 2f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = circleColor
+                style = Paint.Style.FILL
+            })
+        }
 
         val arcRadius = sizePx * 0.26f
         val strokeWidth = sizePx * 0.065f
@@ -311,6 +312,33 @@ object WidgetUpdater {
             style = Paint.Style.FILL
         })
 
+        return bitmap
+    }
+
+    /** Hand-drawn triangle (not a Unicode glyph — unreliable across device fonts) for Back/Forward. */
+    private fun buildTriangleIconBitmap(context: Context, pointingRight: Boolean, dimmed: Boolean): Bitmap {
+        val sizePx = 60
+        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val color = context.getColor(if (dimmed) R.color.nav_button_disabled else R.color.status_text_color)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = color
+            style = Paint.Style.FILL
+        }
+        val margin = sizePx * 0.15f
+        val path = Path().apply {
+            if (pointingRight) {
+                moveTo(margin, margin)
+                lineTo(margin, sizePx - margin)
+                lineTo(sizePx - margin, sizePx / 2f)
+            } else {
+                moveTo(sizePx - margin, margin)
+                lineTo(sizePx - margin, sizePx - margin)
+                lineTo(margin, sizePx / 2f)
+            }
+            close()
+        }
+        canvas.drawPath(path, paint)
         return bitmap
     }
 

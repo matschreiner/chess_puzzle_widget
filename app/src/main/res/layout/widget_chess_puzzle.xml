@@ -630,20 +630,15 @@
         android:visibility="gone">
 
         <TextView
-            android:id="@+id/nav_back_button"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:textColor="@color/status_text_color"
-            android:textSize="10sp"
-            android:text="@string/nav_back_button" />
-
-        <TextView
             android:id="@+id/hint_button"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            android:layout_marginStart="14dp"
+            android:layout_marginEnd="14dp"
+            android:background="@drawable/footer_text_button_background"
             android:gravity="center"
             android:textColor="@color/status_text_color"
             android:textSize="10sp"
@@ -654,40 +649,64 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            android:layout_marginStart="14dp"
+            android:layout_marginEnd="14dp"
+            android:background="@drawable/footer_text_button_background"
             android:gravity="center"
             android:textColor="@color/status_text_color"
             android:textSize="10sp"
             android:text="@string/solution_button" />
 
         <TextView
-            android:id="@+id/restart_button"
-            android:layout_width="0dp"
-            android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:textColor="@color/status_text_color"
-            android:textSize="10sp"
-            android:text="@string/restart_button" />
-
-        <TextView
             android:id="@+id/skip_button"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            android:layout_marginStart="14dp"
+            android:layout_marginEnd="14dp"
+            android:background="@drawable/footer_text_button_background"
             android:gravity="center"
             android:textColor="@color/status_text_color"
             android:textSize="10sp"
             android:text="@string/skip_button" />
 
-        <TextView
-            android:id="@+id/nav_forward_button"
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:textColor="@color/status_text_color"
-            android:textSize="10sp"
-            android:text="@string/nav_forward_button" />
+            android:layout_weight="1.99"
+            android:orientation="horizontal"
+            android:gravity="center_vertical|end">
+
+            <ImageView
+                android:id="@+id/nav_back_button"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/nav_back_button" />
+
+            <ImageView
+                android:id="@+id/nav_forward_button"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginStart="28dp"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/nav_forward_button" />
+
+            <ImageView
+                android:id="@+id/restart_button"
+                android:layout_width="32dp"
+                android:layout_height="28dp"
+                android:layout_marginStart="26dp"
+                android:layout_marginEnd="16dp"
+                android:scaleType="centerInside"
+                android:background="@android:color/transparent"
+                android:contentDescription="@string/restart_button" />
+
+        </LinearLayout>
 
     </LinearLayout>
 
