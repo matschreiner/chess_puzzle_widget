@@ -13,5 +13,5 @@
     <color name="piece_black">#000000</color>
 
     <color name="restart_button_background">#F04A4A4A</color>
-    <color name="nav_button_disabled">#40FFFFFF</color>
+    <color name="nav_button_disabled">#80FFFFFF</color>
 </resources>

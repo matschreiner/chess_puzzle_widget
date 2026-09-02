@@ -10,6 +10,7 @@ import com.masc.chesspuzzlewidget.engine.PuzzleBoardState
 import com.masc.chesspuzzlewidget.engine.replayPgnWithLastMove
 import com.masc.chesspuzzlewidget.state.WidgetPuzzlePrefs
 import com.masc.chesspuzzlewidget.state.WidgetStatus
+import com.masc.chesspuzzlewidget.state.parseAngleSelection
 import com.masc.chesspuzzlewidget.widget.ChessPuzzleWidgetProvider
 import com.masc.chesspuzzlewidget.widget.WidgetUpdater
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -75,14 +76,27 @@ class PuzzleFetchWorker(
             }
 
             val angle = prefs.selectedAngles().random()
+            val angleSelection = parseAngleSelection(angle)
             val difficulty = prefs.difficulty()
-            val recentIds = prefs.recentPuzzleIds()
+            // When prefetching (silent, background), also explicitly avoid re-serving whatever
+            // puzzle is currently on screen — Lichess doesn't advance its queue until a puzzle is
+            // confirmed solved, so a prefetch that runs before that confirm can otherwise hand
+            // back the very puzzle the user is still looking at.
+            val recentIds = prefs.recentPuzzleIds() + listOfNotNull(if (stageOnly) prefs.puzzleId() else null)
+            // A bit more patient than a foreground fetch since nothing is waiting on this — but not
+            // too patient, or the prefetch won't be ready by the time the user wants it (the caller
+            // falls back to a normal fetch anyway if a duplicate slips through).
+            val maxRetries = if (stageOnly) 6 else MAX_DUPLICATE_RETRIES
             val client = LichessApiClient()
             val puzzle = try {
-                var candidate = client.getNextPuzzle(accessToken, angle = angle, difficulty = difficulty)
+                var candidate = client.getNextPuzzle(
+                    accessToken, angle = angleSelection.angle, difficulty = difficulty, color = angleSelection.color
+                )
                 var attempt = 1
-                while (candidate.puzzle.id in recentIds && attempt < MAX_DUPLICATE_RETRIES) {
-                    candidate = client.getNextPuzzle(accessToken, angle = angle, difficulty = difficulty)
+                while (candidate.puzzle.id in recentIds && attempt < maxRetries) {
+                    candidate = client.getNextPuzzle(
+                        accessToken, angle = angleSelection.angle, difficulty = difficulty, color = angleSelection.color
+                    )
                     attempt++
                 }
                 candidate
@@ -122,6 +136,7 @@ class PuzzleFetchWorker(
                     prefs.clearReveals()
                     prefs.setTainted(false)
                     prefs.setCountedSolve(false)
+                    prefs.setHistoryLogged(false)
                     prefs.resetHistory(fen)
                     prefs.setSetupMove(setupMove?.from, setupMove?.to)
                     if (setupMove != null) prefs.setLastMove(setupMove.from, setupMove.to) else prefs.clearLastMove()

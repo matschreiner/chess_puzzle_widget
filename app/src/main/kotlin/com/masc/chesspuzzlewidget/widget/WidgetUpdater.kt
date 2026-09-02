@@ -164,7 +164,7 @@ object WidgetUpdater {
             }
         }
 
-        views.setTextViewText(R.id.daily_counter, PuzzleStatsPrefs(context).todayCount().toString())
+        views.setTextViewText(R.id.daily_counter, "Daily: ${PuzzleStatsPrefs(context).todayCount()}")
         views.setViewVisibility(R.id.daily_counter, View.VISIBLE)
 
         views.setViewVisibility(R.id.settings_gear, View.VISIBLE)

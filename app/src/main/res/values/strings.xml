@@ -17,6 +17,7 @@
     <string name="theme_picker_title">Choose puzzle theme</string>
     <string name="tab_difficulty">Difficulty</string>
     <string name="tab_theme">Theme</string>
+    <string name="tab_stats">Stats</string>
     <string name="ok_button">OK</string>
     <string name="settings_gear_symbol">⚙</string>
     <string name="hint_button">Hint</string>

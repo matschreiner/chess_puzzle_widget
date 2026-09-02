@@ -20,12 +20,14 @@ class LichessApiClient(
     suspend fun getNextPuzzle(
         accessToken: String,
         angle: String? = null,
-        difficulty: String? = null
+        difficulty: String? = null,
+        color: String? = null
     ): PuzzleAndGameDto = withContext(Dispatchers.IO) {
         val url = "https://lichess.org/api/puzzle/next".toHttpUrl().newBuilder()
             .apply {
                 if (angle != null) addQueryParameter("angle", angle)
                 if (difficulty != null) addQueryParameter("difficulty", difficulty)
+                if (color != null) addQueryParameter("color", color)
             }
             .build()
         val request = Request.Builder()

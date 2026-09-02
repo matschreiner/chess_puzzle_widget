@@ -16,6 +16,7 @@ import com.masc.chesspuzzlewidget.engine.PuzzleStatus
 import com.masc.chesspuzzlewidget.network.PuzzleFetchWorker
 import com.masc.chesspuzzlewidget.state.WidgetPuzzlePrefs
 import com.masc.chesspuzzlewidget.state.WidgetStatus
+import com.masc.chesspuzzlewidget.state.parseAngleSelection
 
 class ChessPuzzleWidgetProvider : AppWidgetProvider() {
 
@@ -70,7 +71,7 @@ class ChessPuzzleWidgetProvider : AppWidgetProvider() {
             val current = prefs.loadBoardState()
             val currentId = prefs.puzzleId()
             if (current != null && current.status != PuzzleStatus.SOLVED && currentId != null) {
-                enqueueConfirm(context, appWidgetId, currentId, prefs.puzzleAngle(), win = false)
+                enqueueConfirm(context, appWidgetId, currentId, parseAngleSelection(prefs.puzzleAngle()).angle, win = false)
             }
 
             val staged = prefs.loadStagedPuzzle()
@@ -87,6 +88,9 @@ class ChessPuzzleWidgetProvider : AppWidgetProvider() {
             prefs.setOriginalFen(staged.fen)
             prefs.setFlipped(!boardState.position.whiteToMove)
             prefs.clearReveals()
+            prefs.setTainted(false)
+            prefs.setCountedSolve(false)
+            prefs.setHistoryLogged(false)
             prefs.resetHistory(staged.fen)
             prefs.setSetupMove(staged.setupMoveFrom, staged.setupMoveTo)
             if (staged.setupMoveFrom != null && staged.setupMoveTo != null) {

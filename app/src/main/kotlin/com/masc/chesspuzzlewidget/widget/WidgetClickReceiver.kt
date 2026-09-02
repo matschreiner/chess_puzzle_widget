@@ -5,13 +5,14 @@ import android.content.Context
 import android.content.Intent
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import com.masc.chesspuzzlewidget.engine.FenParser
 import com.masc.chesspuzzlewidget.engine.Position
 import com.masc.chesspuzzlewidget.engine.PuzzleBoardState
 import com.masc.chesspuzzlewidget.engine.PuzzleStatus
+import com.masc.chesspuzzlewidget.state.PuzzleSolveRecord
 import com.masc.chesspuzzlewidget.state.PuzzleStatsPrefs
 import com.masc.chesspuzzlewidget.state.WidgetPuzzlePrefs
+import com.masc.chesspuzzlewidget.state.parseAngleSelection
 
 /** Receives taps on the widget's 64 overlay cells and its "fetch puzzle" targets. */
 class WidgetClickReceiver : BroadcastReceiver() {
@@ -112,11 +113,10 @@ class WidgetClickReceiver : BroadcastReceiver() {
 
             if (afterUserMove.status == PuzzleStatus.SOLVED) {
                 confirmSolvedIfKnown(context, appWidgetId, prefs, win = true)
-                Log.d(TAG, "solved(immediate) puzzleId=${prefs.puzzleId()} tainted=${prefs.isTainted()} counted=${prefs.hasCountedSolve()}")
+                logSolveIfNeeded(context, prefs)
                 if (!prefs.isTainted() && !prefs.hasCountedSolve()) {
                     PuzzleStatsPrefs(context).recordPerfectSolve()
                     prefs.setCountedSolve(true)
-                    Log.d(TAG, "recordPerfectSolve called, new todayCount=${PuzzleStatsPrefs(context).todayCount()}")
                 }
                 WidgetUpdater.render(context, appWidgetId)
                 return
@@ -136,11 +136,10 @@ class WidgetClickReceiver : BroadcastReceiver() {
                 prefs.appendHistory(FenParser.toFen(afterReply.position), replyMove.from, replyMove.to)
                 if (afterReply.status == PuzzleStatus.SOLVED) {
                     confirmSolvedIfKnown(context, appWidgetId, prefs, win = true)
-                    Log.d(TAG, "solved(afterReply) puzzleId=${prefs.puzzleId()} tainted=${prefs.isTainted()} counted=${prefs.hasCountedSolve()}")
+                    logSolveIfNeeded(context, prefs)
                     if (!prefs.isTainted() && !prefs.hasCountedSolve()) {
                         PuzzleStatsPrefs(context).recordPerfectSolve()
                         prefs.setCountedSolve(true)
-                        Log.d(TAG, "recordPerfectSolve called, new todayCount=${PuzzleStatsPrefs(context).todayCount()}")
                     }
                 }
                 WidgetUpdater.render(context, appWidgetId)
@@ -169,7 +168,26 @@ class WidgetClickReceiver : BroadcastReceiver() {
 
     private fun confirmSolvedIfKnown(context: Context, appWidgetId: Int, prefs: WidgetPuzzlePrefs, win: Boolean) {
         val puzzleId = prefs.puzzleId() ?: return
-        ChessPuzzleWidgetProvider.enqueueConfirm(context, appWidgetId, puzzleId, prefs.puzzleAngle(), win)
+        val baseAngle = parseAngleSelection(prefs.puzzleAngle()).angle
+        ChessPuzzleWidgetProvider.enqueueConfirm(context, appWidgetId, puzzleId, baseAngle, win)
+    }
+
+    /** Logs one full record for this puzzle (rating, themes, hint/solution used) — once per puzzle, ever. */
+    private fun logSolveIfNeeded(context: Context, prefs: WidgetPuzzlePrefs) {
+        if (prefs.hasHistoryLogged()) return
+        val puzzleId = prefs.puzzleId() ?: return
+        PuzzleStatsPrefs(context).recordSolve(
+            PuzzleSolveRecord(
+                puzzleId = puzzleId,
+                date = java.time.LocalDate.now().toString(),
+                timestampMillis = System.currentTimeMillis(),
+                rating = prefs.rating(),
+                themes = prefs.themes(),
+                usedHint = prefs.isHintRequested(),
+                usedSolution = prefs.isSolutionRequested()
+            )
+        )
+        prefs.setHistoryLogged(true)
     }
 
     private fun cosmeticMove(position: Position, from: Int, to: Int): Position {
@@ -190,6 +208,5 @@ class WidgetClickReceiver : BroadcastReceiver() {
         const val EXTRA_APPWIDGET_ID = "extra_appwidget_id"
         const val EXTRA_SQUARE = "extra_square"
         private const val MOVE_PAUSE_MS = 500L
-        private const val TAG = "WidgetClickReceiver"
     }
 }

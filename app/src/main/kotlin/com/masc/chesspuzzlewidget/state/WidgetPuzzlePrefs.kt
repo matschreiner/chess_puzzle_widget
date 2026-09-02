@@ -186,6 +186,13 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
 
     fun hasCountedSolve(): Boolean = prefs.getBoolean(KEY_COUNTED_SOLVE, false)
 
+    /** Same idea as [hasCountedSolve] but for the detailed per-puzzle history log — one entry per puzzle. */
+    fun setHistoryLogged(logged: Boolean) {
+        prefs.edit().putBoolean(KEY_HISTORY_LOGGED, logged).apply()
+    }
+
+    fun hasHistoryLogged(): Boolean = prefs.getBoolean(KEY_HISTORY_LOGGED, false)
+
     /** A puzzle fetched ahead of time in the background, ready to swap in instantly on skip/solve. */
     data class StagedPuzzle(
         val id: String,
@@ -323,6 +330,7 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
         private const val KEY_SOLUTION_REQUESTED = "solution_requested"
         private const val KEY_TAINTED = "tainted"
         private const val KEY_COUNTED_SOLVE = "counted_solve"
+        private const val KEY_HISTORY_LOGGED = "history_logged"
         private const val KEY_HISTORY_FENS = "history_fens"
         private const val KEY_HISTORY_MOVES = "history_moves"
         private const val KEY_HISTORY_VIEW_INDEX = "history_view_index"
