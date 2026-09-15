@@ -112,7 +112,7 @@ class WidgetClickReceiver : BroadcastReceiver() {
             prefs.appendHistory(FenParser.toFen(afterUserMove.position), expectedMove.from, expectedMove.to)
 
             if (afterUserMove.status == PuzzleStatus.SOLVED) {
-                confirmSolvedIfKnown(context, appWidgetId, prefs, win = true)
+                confirmSolvedIfKnown(context, appWidgetId, prefs, win = !prefs.isTainted())
                 logSolveIfNeeded(context, prefs)
                 if (!prefs.isTainted() && !prefs.hasCountedSolve()) {
                     PuzzleStatsPrefs(context).recordPerfectSolve()
@@ -135,7 +135,7 @@ class WidgetClickReceiver : BroadcastReceiver() {
                 prefs.saveBoardState(afterReply)
                 prefs.appendHistory(FenParser.toFen(afterReply.position), replyMove.from, replyMove.to)
                 if (afterReply.status == PuzzleStatus.SOLVED) {
-                    confirmSolvedIfKnown(context, appWidgetId, prefs, win = true)
+                    confirmSolvedIfKnown(context, appWidgetId, prefs, win = !prefs.isTainted())
                     logSolveIfNeeded(context, prefs)
                     if (!prefs.isTainted() && !prefs.hasCountedSolve()) {
                         PuzzleStatsPrefs(context).recordPerfectSolve()
