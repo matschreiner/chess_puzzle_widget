@@ -9,6 +9,12 @@ import com.masc.chesspuzzlewidget.engine.FenParser
 import com.masc.chesspuzzlewidget.engine.Position
 import com.masc.chesspuzzlewidget.engine.PuzzleBoardState
 import com.masc.chesspuzzlewidget.engine.PuzzleStatus
+import com.masc.chesspuzzlewidget.engine.UciMove
+import com.masc.chesspuzzlewidget.engine.applyUciMove
+import com.masc.chesspuzzlewidget.engine.canReach
+import com.masc.chesspuzzlewidget.engine.isWhitePiece
+import com.masc.chesspuzzlewidget.engine.leavesOwnKingInCheck
+import com.masc.chesspuzzlewidget.engine.rankOf
 import com.masc.chesspuzzlewidget.state.PuzzleSolveRecord
 import com.masc.chesspuzzlewidget.state.PuzzleStatsPrefs
 import com.masc.chesspuzzlewidget.state.WidgetPuzzlePrefs
@@ -23,33 +29,66 @@ class WidgetClickReceiver : BroadcastReceiver() {
 
         when (intent.action) {
             ACTION_SQUARE_TAP -> handleSquareTap(context, appWidgetId, intent)
-            ACTION_FETCH_PUZZLE -> ChessPuzzleWidgetProvider.requestNextPuzzle(context, appWidgetId)
+            ACTION_FETCH_PUZZLE -> {
+                if (!WidgetPuzzlePrefs(context, appWidgetId).isAnalyzeModeActive()) {
+                    ChessPuzzleWidgetProvider.requestNextPuzzle(context, appWidgetId)
+                }
+            }
             ACTION_HINT -> {
                 val prefs = WidgetPuzzlePrefs(context, appWidgetId)
-                prefs.snapHistoryToLive()
-                prefs.setSolutionRequested(false)
-                prefs.setHintRequested(true)
-                prefs.setTainted(true)
-                WidgetUpdater.render(context, appWidgetId)
+                if (!prefs.isAnalyzeModeActive()) {
+                    prefs.snapHistoryToLive()
+                    prefs.setSolutionRequested(false)
+                    prefs.setHintRequested(true)
+                    prefs.setTainted(true)
+                    WidgetUpdater.render(context, appWidgetId)
+                }
             }
             ACTION_SHOW_SOLUTION -> {
                 val prefs = WidgetPuzzlePrefs(context, appWidgetId)
-                prefs.snapHistoryToLive()
-                prefs.setHintRequested(false)
-                prefs.setSolutionRequested(true)
-                prefs.setTainted(true)
-                WidgetUpdater.render(context, appWidgetId)
+                if (!prefs.isAnalyzeModeActive()) {
+                    prefs.snapHistoryToLive()
+                    prefs.setHintRequested(false)
+                    prefs.setSolutionRequested(true)
+                    prefs.setTainted(true)
+                    WidgetUpdater.render(context, appWidgetId)
+                }
             }
             ACTION_RESTART -> handleRestart(context, appWidgetId)
             ACTION_NAV_BACK -> {
                 val prefs = WidgetPuzzlePrefs(context, appWidgetId)
-                prefs.setHistoryViewIndex((prefs.historyViewIndex() - 1).coerceAtLeast(0))
+                if (prefs.isAnalyzeModeActive()) {
+                    prefs.setAnalyzeHistoryIndex((prefs.analyzeHistoryIndex() - 1).coerceAtLeast(0))
+                } else {
+                    prefs.setHistoryViewIndex((prefs.historyViewIndex() - 1).coerceAtLeast(0))
+                }
                 WidgetUpdater.render(context, appWidgetId)
             }
             ACTION_NAV_FORWARD -> {
                 val prefs = WidgetPuzzlePrefs(context, appWidgetId)
-                val lastIndex = prefs.historyFens().lastIndex.coerceAtLeast(0)
-                prefs.setHistoryViewIndex((prefs.historyViewIndex() + 1).coerceAtMost(lastIndex))
+                if (prefs.isAnalyzeModeActive()) {
+                    val lastIndex = prefs.analyzeHistoryFens().lastIndex.coerceAtLeast(0)
+                    prefs.setAnalyzeHistoryIndex((prefs.analyzeHistoryIndex() + 1).coerceAtMost(lastIndex))
+                } else {
+                    val lastIndex = prefs.historyFens().lastIndex.coerceAtLeast(0)
+                    prefs.setHistoryViewIndex((prefs.historyViewIndex() + 1).coerceAtMost(lastIndex))
+                }
+                WidgetUpdater.render(context, appWidgetId)
+            }
+            ACTION_TOGGLE_ANALYZE -> {
+                val prefs = WidgetPuzzlePrefs(context, appWidgetId)
+                if (prefs.isAnalyzeModeActive()) {
+                    prefs.exitAnalyzeMode()
+                } else {
+                    prefs.snapHistoryToLive()
+                    prefs.loadBoardState()?.let { boardState ->
+                        // Carry over the real puzzle's own last-move highlight so it doesn't just
+                        // vanish the moment analyze mode is entered.
+                        val liveIndex = prefs.historyFens().lastIndex.coerceAtLeast(0)
+                        val originMove = if (liveIndex == 0) prefs.setupMove() else prefs.historyMoves().getOrNull(liveIndex - 1)
+                        prefs.enterAnalyzeMode(FenParser.toFen(boardState.position), originMove?.first, originMove?.second)
+                    }
+                }
                 WidgetUpdater.render(context, appWidgetId)
             }
         }
@@ -57,6 +96,13 @@ class WidgetClickReceiver : BroadcastReceiver() {
 
     private fun handleRestart(context: Context, appWidgetId: Int) {
         val prefs = WidgetPuzzlePrefs(context, appWidgetId)
+
+        if (prefs.isAnalyzeModeActive()) {
+            prefs.resetAnalyzeToOrigin()
+            WidgetUpdater.render(context, appWidgetId)
+            return
+        }
+
         val originalFen = prefs.originalFen() ?: return
         val current = prefs.loadBoardState() ?: return
 
@@ -74,6 +120,11 @@ class WidgetClickReceiver : BroadcastReceiver() {
         if (square == -1) return
 
         val prefs = WidgetPuzzlePrefs(context, appWidgetId)
+
+        if (prefs.isAnalyzeModeActive()) {
+            handleAnalyzeSquareTap(context, appWidgetId, prefs, square)
+            return
+        }
 
         // Tapping anywhere while browsing history just snaps back to the live position — the
         // browsed positions are read-only, so a tap here can't be a real move attempt.
@@ -166,6 +217,55 @@ class WidgetClickReceiver : BroadcastReceiver() {
         }, MOVE_PAUSE_MS)
     }
 
+    /**
+     * Free-move sandbox: any pseudo-legal move is accepted, nothing is checked against the
+     * puzzle's solution, and nothing is tainted/counted/confirmed to Lichess. Every move made is
+     * kept in its own history so Back/Forward can browse it, same as the real puzzle.
+     */
+    private fun handleAnalyzeSquareTap(context: Context, appWidgetId: Int, prefs: WidgetPuzzlePrefs, square: Int) {
+        // Tapping anywhere while browsing analyze history just snaps back to the live sandbox
+        // position — same read-only-browse behavior as the real puzzle's Back/Forward.
+        if (prefs.isAnalyzeBrowsingHistory()) {
+            prefs.snapAnalyzeHistoryToLive()
+            WidgetUpdater.render(context, appWidgetId)
+            return
+        }
+
+        val fen = prefs.analyzeLiveFen() ?: return
+        val position = FenParser.parse(fen)
+        val fromSquare = prefs.analyzeSelectedSquare()
+        val tappedPiece = position.board[square]
+        val tappedIsOwn = tappedPiece != null && isWhitePiece(tappedPiece) == position.whiteToMove
+
+        if (fromSquare == null || fromSquare == square || tappedIsOwn) {
+            prefs.setAnalyzeSelectedSquare(if (fromSquare == square) null else if (tappedIsOwn) square else null)
+            WidgetUpdater.render(context, appWidgetId)
+            return
+        }
+
+        val movingPiece = position.board[fromSquare]
+        if (movingPiece == null || !canReach(movingPiece.uppercaseChar(), fromSquare, square, position)) {
+            prefs.setAnalyzeSelectedSquare(null)
+            WidgetUpdater.render(context, appWidgetId)
+            return
+        }
+
+        val isPromotion = (movingPiece == 'P' && rankOf(square) == 7) || (movingPiece == 'p' && rankOf(square) == 0)
+        val move = if (isPromotion) UciMove(fromSquare, square, 'q') else UciMove(fromSquare, square)
+
+        // Geometrically possible isn't enough — reject moves that leave (or don't resolve) the
+        // mover's own king in check, same as a real legal-move rule.
+        if (leavesOwnKingInCheck(position, move)) {
+            prefs.setAnalyzeSelectedSquare(null)
+            WidgetUpdater.render(context, appWidgetId)
+            return
+        }
+
+        prefs.appendAnalyzeMove(FenParser.toFen(applyUciMove(position, move)), fromSquare, square)
+        prefs.setAnalyzeSelectedSquare(null)
+        WidgetUpdater.render(context, appWidgetId)
+    }
+
     private fun confirmSolvedIfKnown(context: Context, appWidgetId: Int, prefs: WidgetPuzzlePrefs, win: Boolean) {
         val puzzleId = prefs.puzzleId() ?: return
         val baseAngle = parseAngleSelection(prefs.puzzleAngle()).angle
@@ -205,6 +305,7 @@ class WidgetClickReceiver : BroadcastReceiver() {
         const val ACTION_RESTART = "com.masc.chesspuzzlewidget.action.RESTART"
         const val ACTION_NAV_BACK = "com.masc.chesspuzzlewidget.action.NAV_BACK"
         const val ACTION_NAV_FORWARD = "com.masc.chesspuzzlewidget.action.NAV_FORWARD"
+        const val ACTION_TOGGLE_ANALYZE = "com.masc.chesspuzzlewidget.action.TOGGLE_ANALYZE"
         const val EXTRA_APPWIDGET_ID = "extra_appwidget_id"
         const val EXTRA_SQUARE = "extra_square"
         private const val MOVE_PAUSE_MS = 500L

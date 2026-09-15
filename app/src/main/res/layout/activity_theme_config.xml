@@ -46,6 +46,18 @@
             android:textColor="@color/status_text_color"
             android:text="@string/tab_stats" />
 
+        <TextView
+            android:id="@+id/tab_display"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:padding="16dp"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="@color/status_text_color"
+            android:text="@string/tab_display" />
+
     </LinearLayout>
 
     <ScrollView
@@ -74,6 +86,14 @@
 
             <LinearLayout
                 android:id="@+id/stats_page"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="8dp"
+                android:visibility="gone" />
+
+            <LinearLayout
+                android:id="@+id/display_page"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"

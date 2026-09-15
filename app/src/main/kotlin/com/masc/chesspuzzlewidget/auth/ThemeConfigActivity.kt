@@ -21,7 +21,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 private const val MIX_ANGLE = "mix"
-private enum class Page { THEME, DIFFICULTY, STATS }
+private enum class Page { THEME, DIFFICULTY, STATS, DISPLAY }
 
 /**
  * Lets the user toggle which Lichess puzzle themes ("angles") the widget draws from — RemoteViews
@@ -46,6 +46,9 @@ class ThemeConfigActivity : AppCompatActivity() {
     private lateinit var tabDifficulty: TextView
     private lateinit var tabTheme: TextView
     private lateinit var tabStats: TextView
+    private lateinit var tabDisplay: TextView
+    private lateinit var hideThemeRow: TextView
+    private var hideThemeInHeader = false
     private val statsDayRows = mutableMapOf<LocalDate, TextView>()
     private val statsDayDetailContainers = mutableMapOf<LocalDate, LinearLayout>()
     private val statsDayExpanded = mutableMapOf<LocalDate, Boolean>()
@@ -84,6 +87,7 @@ class ThemeConfigActivity : AppCompatActivity() {
         prefs = WidgetPuzzlePrefs(this, appWidgetId)
         selected += prefs.selectedAngles()
         selectedDifficulty = prefs.difficulty()
+        hideThemeInHeader = prefs.isThemeHiddenInHeader()
 
         val difficultyPage = findViewById<LinearLayout>(R.id.difficulty_page)
         for ((value, _) in PuzzleDifficulty.ALL) {
@@ -182,13 +186,16 @@ class ThemeConfigActivity : AppCompatActivity() {
         updateSubGroupVisibility()
 
         buildStatsPage()
+        buildDisplayPage()
 
         tabDifficulty = findViewById(R.id.tab_difficulty)
         tabTheme = findViewById(R.id.tab_theme)
         tabStats = findViewById(R.id.tab_stats)
+        tabDisplay = findViewById(R.id.tab_display)
         tabDifficulty.setOnClickListener { showPage(Page.DIFFICULTY) }
         tabTheme.setOnClickListener { showPage(Page.THEME) }
         tabStats.setOnClickListener { showPage(Page.STATS) }
+        tabDisplay.setOnClickListener { showPage(Page.DISPLAY) }
         showPage(Page.THEME)
 
         findViewById<Button>(R.id.ok_button).setOnClickListener { finish() }
@@ -259,6 +266,22 @@ class ThemeConfigActivity : AppCompatActivity() {
         }
     }
 
+    /** A single on/off row controlling whether the widget header shows the puzzle's theme label. */
+    private fun buildDisplayPage() {
+        val displayPage = findViewById<LinearLayout>(R.id.display_page)
+        hideThemeRow = buildRow(24) {
+            hideThemeInHeader = !hideThemeInHeader
+            prefs.setHideThemeInHeader(hideThemeInHeader)
+            refreshHideThemeRow()
+        }
+        displayPage.addView(hideThemeRow)
+        refreshHideThemeRow()
+    }
+
+    private fun refreshHideThemeRow() {
+        hideThemeRow.text = bulletText(hideThemeInHeader, "Hide theme in widget header")
+    }
+
     private fun refreshStatsDayHeader(date: LocalDate, total: Int, perfect: Int, expanded: Boolean) {
         val row = statsDayRows[date] ?: return
         val chevron = if (expanded) "▾" else "▸"
@@ -283,12 +306,14 @@ class ThemeConfigActivity : AppCompatActivity() {
         findViewById<LinearLayout>(R.id.difficulty_page).visibility = if (page == Page.DIFFICULTY) View.VISIBLE else View.GONE
         findViewById<LinearLayout>(R.id.theme_page).visibility = if (page == Page.THEME) View.VISIBLE else View.GONE
         findViewById<LinearLayout>(R.id.stats_page).visibility = if (page == Page.STATS) View.VISIBLE else View.GONE
+        findViewById<LinearLayout>(R.id.display_page).visibility = if (page == Page.DISPLAY) View.VISIBLE else View.GONE
 
         val activeColor = Color.WHITE
         val inactiveColor = Color.parseColor("#80FFFFFF")
         tabDifficulty.setTextColor(if (page == Page.DIFFICULTY) activeColor else inactiveColor)
         tabTheme.setTextColor(if (page == Page.THEME) activeColor else inactiveColor)
         tabStats.setTextColor(if (page == Page.STATS) activeColor else inactiveColor)
+        tabDisplay.setTextColor(if (page == Page.DISPLAY) activeColor else inactiveColor)
     }
 
     private fun onSelectDifficulty(value: String) {

@@ -94,7 +94,19 @@ private fun resolveSanMove(position: Position, san: ParsedSan): UciMove {
     return UciMove(candidates[0], san.toSquare, san.promotion)
 }
 
-private fun leavesOwnKingInCheck(position: Position, move: UciMove): Boolean {
+/**
+ * The square of the side-to-move's king if it's currently in check, or null otherwise — used to
+ * highlight it red on the board.
+ */
+fun kingInCheckSquare(position: Position): Int? {
+    val kingChar = if (position.whiteToMove) 'K' else 'k'
+    val kingSquare = position.board.indexOf(kingChar)
+    if (kingSquare == -1) return null
+    return if (boardAttacksSquare(position.board, kingSquare, !position.whiteToMove)) kingSquare else null
+}
+
+/** Whether making [move] from [position] would leave the mover's own king in check (an illegal move). */
+fun leavesOwnKingInCheck(position: Position, move: UciMove): Boolean {
     val moverWasWhite = position.whiteToMove
     val after = applyUciMove(position, move)
     val kingChar = if (moverWasWhite) 'K' else 'k'

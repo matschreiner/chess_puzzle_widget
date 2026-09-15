@@ -10,6 +10,7 @@ import com.caverock.androidsvg.RenderOptions
 import com.caverock.androidsvg.SVG
 import com.masc.chesspuzzlewidget.engine.Position
 import com.masc.chesspuzzlewidget.engine.cellForSquare
+import com.masc.chesspuzzlewidget.engine.kingInCheckSquare
 import com.masc.chesspuzzlewidget.engine.squareForCell
 import kotlin.math.hypot
 
@@ -34,16 +35,19 @@ object BoardRenderer {
         selectedSquareColor: Int = Color.parseColor("#80888888"),
         lastMoveColor: Int = Color.parseColor("#80AAA23A"),
         hintColor: Int = Color.parseColor("#4CAF50"),
-        arrowColor: Int = Color.parseColor("#66BB6A")
+        arrowColor: Int = Color.parseColor("#66BB6A"),
+        checkColor: Int = Color.parseColor("#D0E53935")
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val squareSize = sizePx / 8f
+        val checkSquare = kingInCheckSquare(position)
 
         val lightPaint = Paint().apply { color = lightSquareColor }
         val darkPaint = Paint().apply { color = darkSquareColor }
         val selectedPaint = Paint().apply { color = selectedSquareColor }
         val lastMovePaint = Paint().apply { color = lastMoveColor }
+        val checkPaint = Paint().apply { color = checkColor }
 
         for (row in 0..7) {
             for (col in 0..7) {
@@ -56,6 +60,7 @@ object BoardRenderer {
                 canvas.drawRect(left, top, left + squareSize, top + squareSize, basePaint)
 
                 val overlayPaint = when {
+                    square == checkSquare -> checkPaint
                     square == selectedSquare -> selectedPaint
                     square == lastMoveFrom || square == lastMoveTo -> lastMovePaint
                     else -> null

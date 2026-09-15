@@ -99,6 +99,18 @@ object WidgetUpdater {
     }
 
     private fun renderPuzzle(context: Context, views: RemoteViews, appWidgetId: Int, prefs: WidgetPuzzlePrefs) {
+        if (prefs.isAnalyzeModeActive()) {
+            if (prefs.analyzeHistoryFens().isEmpty()) {
+                // Stale "active" flag with no history behind it (e.g. left over from an older
+                // build's analyze state shape) — recover by exiting instead of rendering a
+                // "Loading puzzle" screen with no buttons that can never resolve itself.
+                prefs.exitAnalyzeMode()
+            } else {
+                renderAnalyzeMode(context, views, appWidgetId, prefs)
+                return
+            }
+        }
+
         val boardState = prefs.loadBoardState()
         if (boardState == null) {
             renderLoading(context, views)
@@ -183,9 +195,21 @@ object WidgetUpdater {
 
         views.setImageViewBitmap(R.id.restart_button, buildRestartIconBitmap(context, withBackground = false))
         views.setOnClickPendingIntent(R.id.restart_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_RESTART, 67))
+
+        // Explicitly reset to the normal color rather than relying on the layout XML default —
+        // many launchers reapply RemoteViews onto the already-inflated view instead of
+        // re-inflating it, so a color set while analyzing would otherwise stick around here.
+        val activeColor = context.getColor(R.color.status_text_color)
+        views.setTextColor(R.id.hint_button, activeColor)
+        views.setTextColor(R.id.solution_button, activeColor)
+        views.setTextColor(R.id.skip_button, activeColor)
         views.setOnClickPendingIntent(R.id.hint_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_HINT, 65))
         views.setOnClickPendingIntent(R.id.solution_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_SHOW_SOLUTION, 66))
         views.setOnClickPendingIntent(R.id.skip_button, fetchPuzzlePendingIntent(context, appWidgetId))
+
+        views.setViewVisibility(R.id.analyze_button, View.VISIBLE)
+        views.setImageViewBitmap(R.id.analyze_button, buildAnalyzeIconBitmap(context, active = false))
+        views.setOnClickPendingIntent(R.id.analyze_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_TOGGLE_ANALYZE, 71))
 
         if (boardState.status == PuzzleStatus.SOLVED && !isBrowsing) {
             showStatusOverlay(context, views, showProgress = false, textRes = R.string.status_solved)
@@ -218,7 +242,8 @@ object WidgetUpdater {
         arrowFrom: Int? = null,
         arrowTo: Int? = null,
         browsingIndex: Int? = null,
-        liveIndex: Int = 0
+        liveIndex: Int = 0,
+        analyzing: Boolean = false
     ) {
         showBoard(views, visible = true)
         val bitmap = BoardRenderer.render(
@@ -236,17 +261,107 @@ object WidgetUpdater {
         views.setImageViewBitmap(R.id.board_image, bitmap)
 
         val puzzlePrefs = WidgetPuzzlePrefs(context, appWidgetId)
-        val puzzleAngle = puzzlePrefs.puzzleAngle()
-        val headerParts = if (browsingIndex != null) {
-            listOf("Move $browsingIndex/$liveIndex", PuzzleThemes.labelFor(puzzleAngle))
+        val headerText = if (analyzing) {
+            val label = context.getString(R.string.analyze_button)
+            if (browsingIndex != null) "$label  •  Move $browsingIndex/$liveIndex" else label
         } else {
-            val turnText = context.getString(if (position.whiteToMove) R.string.white_to_move else R.string.black_to_move)
-            val rating = puzzlePrefs.rating()
-            listOfNotNull(turnText, PuzzleThemes.labelFor(puzzleAngle), rating.takeIf { it > 0 }?.toString())
+            val puzzleAngle = puzzlePrefs.puzzleAngle()
+            val hideTheme = puzzlePrefs.isThemeHiddenInHeader()
+            val themeLabel = PuzzleThemes.labelFor(puzzleAngle).takeUnless { hideTheme }
+            val headerParts = if (browsingIndex != null) {
+                listOfNotNull("Move $browsingIndex/$liveIndex", themeLabel)
+            } else {
+                val turnText = context.getString(if (position.whiteToMove) R.string.white_to_move else R.string.black_to_move)
+                val rating = puzzlePrefs.rating()
+                listOfNotNull(turnText, themeLabel, rating.takeIf { it > 0 }?.toString())
+            }
+            headerParts.joinToString("  •  ")
         }
-        views.setTextViewText(R.id.header_bar, headerParts.joinToString("  •  "))
+        views.setTextViewText(R.id.header_bar, headerText)
         views.setViewVisibility(R.id.header_bar, View.VISIBLE)
         views.setViewVisibility(R.id.footer_bar, View.VISIBLE)
+    }
+
+    /**
+     * Free-move sandbox: shows [WidgetPuzzlePrefs.analyzeFen] instead of the real puzzle state. The
+     * footer stays visible for continuity, but only Restart is live here (it resets the sandbox
+     * back to the position it was entered with) — Hint/Solution/Skip/Back/Forward are dimmed and
+     * inert, since [WidgetClickReceiver] no-ops those actions while analyze mode is active.
+     */
+    private fun renderAnalyzeMode(context: Context, views: RemoteViews, appWidgetId: Int, prefs: WidgetPuzzlePrefs) {
+        val historyFens = prefs.analyzeHistoryFens()
+        if (historyFens.isEmpty()) {
+            renderLoading(context, views)
+            return
+        }
+        val liveIndex = historyFens.lastIndex.coerceAtLeast(0)
+        val viewIndex = prefs.analyzeHistoryIndex().coerceIn(0, liveIndex)
+        val isBrowsing = viewIndex < liveIndex
+
+        val position = FenParser.parse(historyFens[viewIndex])
+        val flipped = prefs.isFlipped()
+        val lastMove = if (viewIndex == 0) prefs.analyzeOriginMove() else prefs.analyzeHistoryMoves().getOrNull(viewIndex - 1)
+
+        paintBoardAndHeader(
+            context, views, appWidgetId, position,
+            selectedSquare = if (isBrowsing) null else prefs.analyzeSelectedSquare(), flipped,
+            lastMoveFrom = lastMove?.first, lastMoveTo = lastMove?.second,
+            browsingIndex = if (isBrowsing) viewIndex else null, liveIndex = liveIndex,
+            analyzing = true
+        )
+
+        for (row in 0..7) {
+            for (col in 0..7) {
+                val viewId = context.resources.getIdentifier("cell_${row}_$col", "id", context.packageName)
+                if (viewId == 0) continue
+                val square = squareForCell(row, col, flipped)
+                views.setOnClickPendingIntent(viewId, squareTapPendingIntent(context, appWidgetId, square))
+            }
+        }
+
+        views.setTextViewText(R.id.daily_counter, "Daily: ${PuzzleStatsPrefs(context).todayCount()}")
+        views.setViewVisibility(R.id.daily_counter, View.VISIBLE)
+        views.setViewVisibility(R.id.status_overlay, View.GONE)
+        views.setViewVisibility(R.id.solved_restart_button, View.GONE)
+
+        views.setViewVisibility(R.id.settings_gear, View.VISIBLE)
+        val themeConfigIntent = Intent(context, ThemeConfigActivity::class.java).apply {
+            putExtra(WidgetClickReceiver.EXTRA_APPWIDGET_ID, appWidgetId)
+        }
+        views.setOnClickPendingIntent(
+            R.id.settings_gear,
+            PendingIntent.getActivity(
+                context,
+                appWidgetId,
+                themeConfigIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        )
+
+        views.setViewVisibility(R.id.analyze_button, View.VISIBLE)
+        views.setImageViewBitmap(R.id.analyze_button, buildAnalyzeIconBitmap(context, active = true))
+        views.setOnClickPendingIntent(
+            R.id.analyze_button,
+            actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_TOGGLE_ANALYZE, 71)
+        )
+
+        // Restart and Back/Forward are functional here (they act on the sandbox's own history);
+        // Hint/Solution/Skip stay visible for layout continuity but are dimmed and inert.
+        views.setImageViewBitmap(R.id.restart_button, buildRestartIconBitmap(context, withBackground = false))
+        views.setOnClickPendingIntent(R.id.restart_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_RESTART, 67))
+
+        views.setOnClickPendingIntent(R.id.nav_back_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_NAV_BACK, 69))
+        views.setOnClickPendingIntent(R.id.nav_forward_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_NAV_FORWARD, 70))
+        views.setImageViewBitmap(R.id.nav_back_button, buildTriangleIconBitmap(context, pointingRight = false, dimmed = viewIndex == 0))
+        views.setImageViewBitmap(R.id.nav_forward_button, buildTriangleIconBitmap(context, pointingRight = true, dimmed = viewIndex == liveIndex))
+
+        val disabledColor = context.getColor(R.color.nav_button_disabled)
+        views.setTextColor(R.id.hint_button, disabledColor)
+        views.setTextColor(R.id.solution_button, disabledColor)
+        views.setTextColor(R.id.skip_button, disabledColor)
+        views.setOnClickPendingIntent(R.id.hint_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_HINT, 65))
+        views.setOnClickPendingIntent(R.id.solution_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_SHOW_SOLUTION, 66))
+        views.setOnClickPendingIntent(R.id.skip_button, fetchPuzzlePendingIntent(context, appWidgetId))
     }
 
     /**
@@ -339,6 +454,40 @@ object WidgetUpdater {
             close()
         }
         canvas.drawPath(path, paint)
+        return bitmap
+    }
+
+    /** Hand-drawn magnifying glass (not a Unicode glyph) for the Analyze toggle. */
+    private fun buildAnalyzeIconBitmap(context: Context, active: Boolean): Bitmap {
+        val sizePx = 84
+        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        val color = context.getColor(if (active) R.color.board_selected_square else R.color.status_text_color)
+
+        // Scaled down within its own canvas (rather than shrinking the canvas itself) so the
+        // stroke width shrinks along with the glyph instead of looking disproportionately thick.
+        val scale = 0.68f
+        val offset = sizePx * (1f - scale) / 2f
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            this.color = color
+            style = Paint.Style.STROKE
+            strokeWidth = sizePx * 0.09f * scale
+            strokeCap = Paint.Cap.ROUND
+        }
+
+        val lensRadius = sizePx * 0.30f * scale
+        val lensCx = offset + sizePx * 0.40f * scale
+        val lensCy = offset + sizePx * 0.40f * scale
+        canvas.drawCircle(lensCx, lensCy, lensRadius, paint)
+
+        val handleStartOffset = lensRadius + sizePx * 0.04f * scale
+        val angleRad = Math.toRadians(45.0)
+        val handleStartX = lensCx + handleStartOffset * kotlin.math.cos(angleRad).toFloat()
+        val handleStartY = lensCy + handleStartOffset * kotlin.math.sin(angleRad).toFloat()
+        val handleEndX = offset + sizePx * 0.92f * scale
+        val handleEndY = offset + sizePx * 0.92f * scale
+        canvas.drawLine(handleStartX, handleStartY, handleEndX, handleEndY, paint)
+
         return bitmap
     }
 

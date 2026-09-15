@@ -94,6 +94,108 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
 
     fun difficulty(): String = prefs.getString(KEY_DIFFICULTY, null) ?: PuzzleDifficulty.DEFAULT
 
+    /** Display preference: hide the puzzle's theme/opening label from the widget header. */
+    fun setHideThemeInHeader(hide: Boolean) {
+        prefs.edit().putBoolean(KEY_HIDE_THEME_IN_HEADER, hide).apply()
+    }
+
+    fun isThemeHiddenInHeader(): Boolean = prefs.getBoolean(KEY_HIDE_THEME_IN_HEADER, false)
+
+    /**
+     * A free-move sandbox, separate from the real puzzle state: lets the user move pieces around
+     * without touching solving progress, tainting, or the confirmed-solution flow. Entering it
+     * snapshots whatever position was live at the time; exiting discards the snapshot entirely.
+     * Every move made inside the sandbox is kept as its own history (mirroring [historyFens] for
+     * the real puzzle) so Back/Forward can browse it too.
+     */
+    fun enterAnalyzeMode(fen: String, originMoveFrom: Int? = null, originMoveTo: Int? = null) {
+        prefs.edit()
+            .putBoolean(KEY_ANALYZE_ACTIVE, true)
+            .putString(KEY_ANALYZE_HISTORY_FENS, fen)
+            .remove(KEY_ANALYZE_HISTORY_MOVES)
+            .putInt(KEY_ANALYZE_HISTORY_INDEX, 0)
+            .putInt(KEY_ANALYZE_ORIGIN_MOVE_FROM, originMoveFrom ?: -1)
+            .putInt(KEY_ANALYZE_ORIGIN_MOVE_TO, originMoveTo ?: -1)
+            .remove(KEY_ANALYZE_SELECTED)
+            .apply()
+    }
+
+    fun exitAnalyzeMode() {
+        prefs.edit()
+            .putBoolean(KEY_ANALYZE_ACTIVE, false)
+            .remove(KEY_ANALYZE_HISTORY_FENS)
+            .remove(KEY_ANALYZE_HISTORY_MOVES)
+            .remove(KEY_ANALYZE_HISTORY_INDEX)
+            .remove(KEY_ANALYZE_ORIGIN_MOVE_FROM)
+            .remove(KEY_ANALYZE_ORIGIN_MOVE_TO)
+            .remove(KEY_ANALYZE_SELECTED)
+            .apply()
+    }
+
+    fun isAnalyzeModeActive(): Boolean = prefs.getBoolean(KEY_ANALYZE_ACTIVE, false)
+
+    /** The last-move highlight to show at analyze history index 0 — the real puzzle's own last move. */
+    fun analyzeOriginMove(): Pair<Int, Int>? {
+        val from = prefs.getInt(KEY_ANALYZE_ORIGIN_MOVE_FROM, -1)
+        val to = prefs.getInt(KEY_ANALYZE_ORIGIN_MOVE_TO, -1)
+        return if (from >= 0 && to >= 0) from to to else null
+    }
+
+    /** Every position reached in the sandbox so far — index 0 is the snapshot it was entered with. */
+    fun analyzeHistoryFens(): List<String> =
+        prefs.getString(KEY_ANALYZE_HISTORY_FENS, null)?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
+
+    /** The move that led from analyze history index i to i+1, one entry per ply after index 0. */
+    fun analyzeHistoryMoves(): List<Pair<Int, Int>> =
+        prefs.getString(KEY_ANALYZE_HISTORY_MOVES, null)?.split(",")?.filter { it.isNotBlank() }?.map {
+            val (from, to) = it.split(":").map(String::toInt)
+            from to to
+        } ?: emptyList()
+
+    fun analyzeHistoryIndex(): Int = prefs.getInt(KEY_ANALYZE_HISTORY_INDEX, 0)
+
+    fun setAnalyzeHistoryIndex(index: Int) {
+        prefs.edit().putInt(KEY_ANALYZE_HISTORY_INDEX, index).apply()
+    }
+
+    fun isAnalyzeBrowsingHistory(): Boolean =
+        analyzeHistoryIndex() < analyzeHistoryFens().lastIndex.coerceAtLeast(0)
+
+    fun snapAnalyzeHistoryToLive() {
+        setAnalyzeHistoryIndex(analyzeHistoryFens().lastIndex.coerceAtLeast(0))
+    }
+
+    /** The true current sandbox position (the end of the history), regardless of what's browsed. */
+    fun analyzeLiveFen(): String? = analyzeHistoryFens().lastOrNull()
+
+    fun appendAnalyzeMove(fen: String, moveFrom: Int, moveTo: Int) {
+        val fens = analyzeHistoryFens() + fen
+        val moves = analyzeHistoryMoves() + (moveFrom to moveTo)
+        prefs.edit()
+            .putString(KEY_ANALYZE_HISTORY_FENS, fens.joinToString("|"))
+            .putString(KEY_ANALYZE_HISTORY_MOVES, moves.joinToString(",") { "${it.first}:${it.second}" })
+            .putInt(KEY_ANALYZE_HISTORY_INDEX, fens.lastIndex)
+            .apply()
+    }
+
+    /** Resets the sandbox back to the position it had when [enterAnalyzeMode] was called. */
+    fun resetAnalyzeToOrigin() {
+        val originFen = analyzeHistoryFens().firstOrNull() ?: return
+        prefs.edit()
+            .putString(KEY_ANALYZE_HISTORY_FENS, originFen)
+            .remove(KEY_ANALYZE_HISTORY_MOVES)
+            .putInt(KEY_ANALYZE_HISTORY_INDEX, 0)
+            .remove(KEY_ANALYZE_SELECTED)
+            .apply()
+    }
+
+    fun analyzeSelectedSquare(): Int? = prefs.getInt(KEY_ANALYZE_SELECTED, -1).takeIf { it >= 0 }
+
+    fun setAnalyzeSelectedSquare(square: Int?) {
+        if (square == null) prefs.edit().remove(KEY_ANALYZE_SELECTED).apply()
+        else prefs.edit().putInt(KEY_ANALYZE_SELECTED, square).apply()
+    }
+
     /** The angle the currently active puzzle was actually fetched with (for confirming its result later). */
     fun setPuzzleAngle(angle: String) {
         prefs.edit().putString(KEY_PUZZLE_ANGLE, angle).apply()
@@ -318,6 +420,14 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
         private const val KEY_RATING = "rating"
         private const val KEY_ANGLES = "puzzle_angles"
         private const val KEY_DIFFICULTY = "puzzle_difficulty"
+        private const val KEY_HIDE_THEME_IN_HEADER = "hide_theme_in_header"
+        private const val KEY_ANALYZE_ACTIVE = "analyze_active"
+        private const val KEY_ANALYZE_HISTORY_FENS = "analyze_history_fens"
+        private const val KEY_ANALYZE_HISTORY_MOVES = "analyze_history_moves"
+        private const val KEY_ANALYZE_ORIGIN_MOVE_FROM = "analyze_origin_move_from"
+        private const val KEY_ANALYZE_ORIGIN_MOVE_TO = "analyze_origin_move_to"
+        private const val KEY_ANALYZE_HISTORY_INDEX = "analyze_history_index"
+        private const val KEY_ANALYZE_SELECTED = "analyze_selected"
         private const val KEY_PUZZLE_ANGLE = "active_puzzle_angle"
         const val DEFAULT_ANGLE = "pin"
         private const val KEY_ORIGINAL_FEN = "original_fen"

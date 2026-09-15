@@ -18,8 +18,10 @@
     <string name="tab_difficulty">Difficulty</string>
     <string name="tab_theme">Theme</string>
     <string name="tab_stats">Stats</string>
+    <string name="tab_display">Display</string>
     <string name="ok_button">OK</string>
     <string name="settings_gear_symbol">⚙</string>
+    <string name="analyze_button">Analyze</string>
     <string name="hint_button">Hint</string>
     <string name="solution_button">Solution</string>
     <string name="skip_button">Skip</string>
