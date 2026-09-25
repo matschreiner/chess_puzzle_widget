@@ -30,9 +30,11 @@ class WidgetClickReceiver : BroadcastReceiver() {
         when (intent.action) {
             ACTION_SQUARE_TAP -> handleSquareTap(context, appWidgetId, intent)
             ACTION_FETCH_PUZZLE -> {
-                if (!WidgetPuzzlePrefs(context, appWidgetId).isAnalyzeModeActive()) {
-                    ChessPuzzleWidgetProvider.requestNextPuzzle(context, appWidgetId)
+                val prefs = WidgetPuzzlePrefs(context, appWidgetId)
+                if (prefs.isAnalyzeModeActive()) {
+                    prefs.exitAnalyzeMode()
                 }
+                ChessPuzzleWidgetProvider.requestNextPuzzle(context, appWidgetId)
             }
             ACTION_HINT -> {
                 val prefs = WidgetPuzzlePrefs(context, appWidgetId)

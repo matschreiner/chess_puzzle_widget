@@ -285,10 +285,10 @@ object WidgetUpdater {
     }
 
     /**
-     * Free-move sandbox: shows [WidgetPuzzlePrefs.analyzeFen] instead of the real puzzle state. The
-     * footer stays visible for continuity, but only Restart is live here (it resets the sandbox
-     * back to the position it was entered with) — Hint/Solution/Skip/Back/Forward are dimmed and
-     * inert, since [WidgetClickReceiver] no-ops those actions while analyze mode is active.
+     * Free-move sandbox: shows the sandbox's own position/history instead of the real puzzle
+     * state. Restart and Back/Forward act on the sandbox's own history; Skip exits the sandbox
+     * and fetches the next puzzle, same as it does outside analyze mode. Hint/Solution stay
+     * visible for layout continuity but are dimmed and inert — there's no on-demand engine to ask.
      */
     private fun renderAnalyzeMode(context: Context, views: RemoteViews, appWidgetId: Int, prefs: WidgetPuzzlePrefs) {
         val historyFens = prefs.analyzeHistoryFens()
@@ -359,9 +359,10 @@ object WidgetUpdater {
         views.setImageViewBitmap(R.id.nav_forward_button, buildTriangleIconBitmap(context, pointingRight = true, dimmed = viewIndex == liveIndex))
 
         val disabledColor = context.getColor(R.color.nav_button_disabled)
+        val activeColor = context.getColor(R.color.status_text_color)
         views.setTextColor(R.id.hint_button, disabledColor)
         views.setTextColor(R.id.solution_button, disabledColor)
-        views.setTextColor(R.id.skip_button, disabledColor)
+        views.setTextColor(R.id.skip_button, activeColor)
         views.setOnClickPendingIntent(R.id.hint_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_HINT, 65))
         views.setOnClickPendingIntent(R.id.solution_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_SHOW_SOLUTION, 66))
         views.setOnClickPendingIntent(R.id.skip_button, fetchPuzzlePendingIntent(context, appWidgetId))
