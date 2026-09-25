@@ -87,6 +87,31 @@ object BoardRenderer {
         return bitmap
     }
 
+    /**
+     * Renders a single piece (e.g. 'K'/'k' for the turn indicator next to the daily counter) as
+     * its own small Bitmap. [backgroundColor], if given, fills a circle behind it first — needed
+     * for a black piece, whose dark fill would otherwise disappear against a dark widget background.
+     */
+    fun renderPieceIcon(context: Context, piece: Char, sizePx: Int, backgroundColor: Int? = null): Bitmap {
+        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        if (backgroundColor != null) {
+            canvas.drawCircle(sizePx / 2f, sizePx / 2f, sizePx / 2f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = backgroundColor
+                style = Paint.Style.FILL
+            })
+        }
+        // The piece art's visual weight sits lower than its bounding box's geometric center (a
+        // wide base under a thin cross/crown), so nudge it up a touch to actually look centered
+        // inside a circular badge — only relevant with a background circle, not on the board itself.
+        val verticalNudge = if (backgroundColor != null) -sizePx * 0.05f else 0f
+        canvas.save()
+        canvas.translate(0f, verticalNudge)
+        drawPiece(context, canvas, piece, 0f, 0f, sizePx.toFloat())
+        canvas.restore()
+        return bitmap
+    }
+
     private fun drawHintRing(canvas: Canvas, square: Int, flipped: Boolean, squareSize: Float, color: Int) {
         val (row, col) = cellForSquare(square, flipped)
         val cx = (col + 0.5f) * squareSize

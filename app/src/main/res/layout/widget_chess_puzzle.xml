@@ -595,18 +595,34 @@
         android:textSize="@dimen/widget_label_text_size"
         android:visibility="gone" />
 
-    <TextView
-        android:id="@+id/daily_counter"
+    <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="28dp"
         android:layout_gravity="top|start"
         android:layout_marginStart="12dp"
-        android:paddingHorizontal="4dp"
-        android:gravity="center"
-        android:textColor="@color/status_text_color"
-        android:textSize="@dimen/widget_label_text_size"
-        android:textStyle="bold"
-        android:visibility="gone" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/daily_counter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="4dp"
+            android:gravity="center"
+            android:textColor="@color/status_text_color"
+            android:textSize="@dimen/widget_label_text_size"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <ImageView
+            android:id="@+id/turn_king_icon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginStart="2dp"
+            android:contentDescription="@null"
+            android:visibility="gone" />
+
+    </LinearLayout>
 
     <LinearLayout
         android:layout_width="wrap_content"

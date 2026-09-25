@@ -28,6 +28,7 @@ import com.masc.chesspuzzlewidget.state.WidgetStatus
 object WidgetUpdater {
 
     private const val BOARD_BITMAP_SIZE_PX = 480
+    private const val TURN_KING_ICON_SIZE_PX = 96
     private const val REQUEST_CODE_ACTION_OFFSET = 64
 
     fun render(context: Context, appWidgetId: Int) {
@@ -178,6 +179,7 @@ object WidgetUpdater {
 
         views.setTextViewText(R.id.daily_counter, "Daily: ${PuzzleStatsPrefs(context).todayCount()}")
         views.setViewVisibility(R.id.daily_counter, View.VISIBLE)
+        paintTurnKingIcon(context, views, boardState.position.whiteToMove)
 
         views.setViewVisibility(R.id.settings_gear, View.VISIBLE)
         val themeConfigIntent = Intent(context, ThemeConfigActivity::class.java).apply {
@@ -321,6 +323,7 @@ object WidgetUpdater {
 
         views.setTextViewText(R.id.daily_counter, "Daily: ${PuzzleStatsPrefs(context).todayCount()}")
         views.setViewVisibility(R.id.daily_counter, View.VISIBLE)
+        paintTurnKingIcon(context, views, position.whiteToMove)
         views.setViewVisibility(R.id.status_overlay, View.GONE)
         views.setViewVisibility(R.id.solved_restart_button, View.GONE)
 
@@ -489,6 +492,14 @@ object WidgetUpdater {
         canvas.drawLine(handleStartX, handleStartY, handleEndX, handleEndY, paint)
 
         return bitmap
+    }
+
+    /** Small white/black king icon next to the daily counter, showing whose turn it is at a glance. */
+    private fun paintTurnKingIcon(context: Context, views: RemoteViews, whiteToMove: Boolean) {
+        val piece = if (whiteToMove) 'K' else 'k'
+        val backgroundColor = context.getColor(R.color.board_light_square)
+        views.setImageViewBitmap(R.id.turn_king_icon, BoardRenderer.renderPieceIcon(context, piece, TURN_KING_ICON_SIZE_PX, backgroundColor))
+        views.setViewVisibility(R.id.turn_king_icon, View.VISIBLE)
     }
 
     private fun showBoard(views: RemoteViews, visible: Boolean) {
