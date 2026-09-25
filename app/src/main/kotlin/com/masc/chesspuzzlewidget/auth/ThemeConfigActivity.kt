@@ -17,6 +17,7 @@ import com.masc.chesspuzzlewidget.state.PuzzleThemes
 import com.masc.chesspuzzlewidget.state.WidgetPuzzlePrefs
 import com.masc.chesspuzzlewidget.widget.ChessPuzzleWidgetProvider
 import com.masc.chesspuzzlewidget.widget.WidgetClickReceiver
+import com.masc.chesspuzzlewidget.widget.WidgetUpdater
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -401,8 +402,15 @@ class ThemeConfigActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         if (appWidgetId != -1) {
-            prefs.clearStagedPuzzle()
-            ChessPuzzleWidgetProvider.forceFetch(this, appWidgetId)
+            // Only force a brand-new puzzle if the active one's own theme got deselected here —
+            // otherwise just re-render (picks up e.g. a Display-tab toggle) without discarding
+            // whatever puzzle attempt was already in progress.
+            if (prefs.puzzleAngle() !in prefs.selectedAngles()) {
+                prefs.clearStagedPuzzle()
+                ChessPuzzleWidgetProvider.forceFetch(this, appWidgetId)
+            } else {
+                WidgetUpdater.render(this, appWidgetId)
+            }
         }
     }
 }

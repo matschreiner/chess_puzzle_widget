@@ -12,11 +12,9 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
 import com.masc.chesspuzzlewidget.engine.PuzzleBoardState
-import com.masc.chesspuzzlewidget.engine.PuzzleStatus
 import com.masc.chesspuzzlewidget.network.PuzzleFetchWorker
 import com.masc.chesspuzzlewidget.state.WidgetPuzzlePrefs
 import com.masc.chesspuzzlewidget.state.WidgetStatus
-import com.masc.chesspuzzlewidget.state.parseAngleSelection
 
 class ChessPuzzleWidgetProvider : AppWidgetProvider() {
 
@@ -64,15 +62,11 @@ class ChessPuzzleWidgetProvider : AppWidgetProvider() {
         /**
          * Called when the user wants a new puzzle (skip, solved-continue, first load): swaps in the
          * already-prefetched puzzle instantly if one is ready, otherwise falls back to [forceFetch].
+         * Skipping an unsolved puzzle does NOT report it to Lichess as failed — it's simply left
+         * unconfirmed, so Lichess's queue can still serve it again later.
          */
         fun requestNextPuzzle(context: Context, appWidgetId: Int) {
             val prefs = WidgetPuzzlePrefs(context, appWidgetId)
-
-            val current = prefs.loadBoardState()
-            val currentId = prefs.puzzleId()
-            if (current != null && current.status != PuzzleStatus.SOLVED && currentId != null) {
-                enqueueConfirm(context, appWidgetId, currentId, parseAngleSelection(prefs.puzzleAngle()).angle, win = false)
-            }
 
             val staged = prefs.loadStagedPuzzle()
             if (staged == null) {
