@@ -43,6 +43,7 @@ class ThemeConfigActivity : AppCompatActivity() {
 
     private val rows = mutableMapOf<String, TextView>()
     private var selectedDifficulty = PuzzleDifficulty.DEFAULT
+    private var initialDifficulty = PuzzleDifficulty.DEFAULT
     private val difficultyRows = mutableMapOf<String, TextView>()
     private lateinit var tabDifficulty: TextView
     private lateinit var tabTheme: TextView
@@ -88,6 +89,7 @@ class ThemeConfigActivity : AppCompatActivity() {
         prefs = WidgetPuzzlePrefs(this, appWidgetId)
         selected += prefs.selectedAngles()
         selectedDifficulty = prefs.difficulty()
+        initialDifficulty = selectedDifficulty
         hideThemeInHeader = prefs.isThemeHiddenInHeader()
 
         val difficultyPage = findViewById<LinearLayout>(R.id.difficulty_page)
@@ -402,10 +404,12 @@ class ThemeConfigActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         if (appWidgetId != -1) {
-            // Only force a brand-new puzzle if the active one's own theme got deselected here —
-            // otherwise just re-render (picks up e.g. a Display-tab toggle) without discarding
-            // whatever puzzle attempt was already in progress.
-            if (prefs.puzzleAngle() !in prefs.selectedAngles()) {
+            // Only force a brand-new puzzle if the active one's own theme got deselected, or the
+            // difficulty was changed, here — otherwise just re-render (picks up e.g. a
+            // Display-tab toggle) without discarding whatever puzzle attempt was already in progress.
+            val themeDeselected = prefs.puzzleAngle() !in prefs.selectedAngles()
+            val difficultyChanged = prefs.difficulty() != initialDifficulty
+            if (themeDeselected || difficultyChanged) {
                 prefs.clearStagedPuzzle()
                 ChessPuzzleWidgetProvider.forceFetch(this, appWidgetId)
             } else {
