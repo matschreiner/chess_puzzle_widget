@@ -69,7 +69,13 @@ class ChessPuzzleWidgetProvider : AppWidgetProvider() {
             val prefs = WidgetPuzzlePrefs(context, appWidgetId)
 
             val staged = prefs.loadStagedPuzzle()
-            if (staged == null) {
+            // The staged puzzle may have been prefetched before this one was confirmed to Lichess
+            // (prefetching happens eagerly, for speed) — if it turns out to just be the puzzle
+            // we're currently replacing, don't show it; fall back to a live fetch instead.
+            // (NOT `recentPuzzleIds()` — that list already contains the staged puzzle's own id,
+            // added the moment it was fetched, so checking against it would always "match".)
+            if (staged == null || staged.id == prefs.puzzleId()) {
+                prefs.clearStagedPuzzle()
                 forceFetch(context, appWidgetId)
                 return
             }
@@ -95,6 +101,9 @@ class ChessPuzzleWidgetProvider : AppWidgetProvider() {
             prefs.clearStagedPuzzle()
             prefs.saveBoardState(boardState)
             WidgetUpdater.render(context, appWidgetId)
+            // Eager prefetch for speed (see the comment on enqueuePrefetch in PuzzleFetchWorker's
+            // fresh-fetch branch) — duplicate risk is handled at the point this staged puzzle is
+            // actually consumed, above, not by avoiding prefetching here.
             enqueuePrefetch(context, appWidgetId)
         }
 

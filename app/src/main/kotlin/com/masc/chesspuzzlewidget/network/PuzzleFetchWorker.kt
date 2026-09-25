@@ -69,6 +69,10 @@ class PuzzleFetchWorker(
                 try {
                     val angleForConfirm = confirmAngle ?: WidgetPuzzlePrefs.DEFAULT_ANGLE
                     LichessApiClient().confirmSolved(accessToken, angleForConfirm, confirmPuzzleId, confirmWin)
+                    // Only safe to prefetch "the next one" once Lichess's queue has actually
+                    // advanced past this puzzle — prefetching any earlier just re-fetches this
+                    // same still-unconfirmed puzzle (see the comment below on `recentIds`).
+                    ChessPuzzleWidgetProvider.enqueuePrefetch(applicationContext, appWidgetId)
                 } catch (e: Exception) {
                     Log.e(TAG, "Confirming puzzle result failed: ${e.javaClass.simpleName}: ${e.message}", e)
                 }
@@ -142,6 +146,11 @@ class PuzzleFetchWorker(
                     if (setupMove != null) prefs.setLastMove(setupMove.from, setupMove.to) else prefs.clearLastMove()
                     prefs.saveBoardState(boardState)
                     WidgetUpdater.render(applicationContext, appWidgetId)
+                    // Prefetch eagerly for speed — this puzzle hasn't been confirmed yet, so
+                    // Lichess may just hand back this same puzzle as "next" (its queue only moves
+                    // on confirm). That's fine: requestNextPuzzle() checks for that duplicate
+                    // before ever showing it, and the confirm branch above re-prefetches a
+                    // guaranteed-fresh one once this puzzle is actually solved.
                     ChessPuzzleWidgetProvider.enqueuePrefetch(applicationContext, appWidgetId)
                 }
             } catch (e: Exception) {
