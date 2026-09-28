@@ -112,6 +112,15 @@ object WidgetUpdater {
             }
         }
 
+        if (prefs.isBrowsingPuzzleHistory()) {
+            if (prefs.puzzleHistory().isEmpty()) {
+                prefs.setPuzzleHistoryViewIndex(-1)
+            } else {
+                renderPuzzleHistoryView(context, views, appWidgetId, prefs)
+                return
+            }
+        }
+
         val boardState = prefs.loadBoardState()
         if (boardState == null) {
             renderLoading(context, views)
@@ -245,7 +254,8 @@ object WidgetUpdater {
         arrowTo: Int? = null,
         browsingIndex: Int? = null,
         liveIndex: Int = 0,
-        analyzing: Boolean = false
+        analyzing: Boolean = false,
+        headerOverride: String? = null
     ) {
         showBoard(views, visible = true)
         val bitmap = BoardRenderer.render(
@@ -263,7 +273,9 @@ object WidgetUpdater {
         views.setImageViewBitmap(R.id.board_image, bitmap)
 
         val puzzlePrefs = WidgetPuzzlePrefs(context, appWidgetId)
-        val headerText = if (analyzing) {
+        val headerText = if (headerOverride != null) {
+            headerOverride
+        } else if (analyzing) {
             val label = context.getString(R.string.analyze_button)
             if (browsingIndex != null) "$label  •  Move $browsingIndex/$liveIndex" else label
         } else {
@@ -366,6 +378,82 @@ object WidgetUpdater {
         views.setOnClickPendingIntent(R.id.hint_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_HINT, 65))
         views.setOnClickPendingIntent(R.id.solution_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_SHOW_SOLUTION, 66))
         views.setOnClickPendingIntent(R.id.skip_button, fetchPuzzlePendingIntent(context, appWidgetId))
+    }
+
+    /**
+     * Read-only view of a past puzzle (its position as last seen, whether solved or abandoned
+     * mid-way), reached via the Previous top-bar icon. Tapping any square snaps back to the live
+     * puzzle, same spirit as browsing move history within a puzzle, one level up.
+     */
+    private fun renderPuzzleHistoryView(context: Context, views: RemoteViews, appWidgetId: Int, prefs: WidgetPuzzlePrefs) {
+        val history = prefs.puzzleHistory()
+        val viewIndex = prefs.puzzleHistoryViewIndex().coerceIn(0, history.lastIndex.coerceAtLeast(0))
+        val entry = history[viewIndex]
+
+        val position = FenParser.parse(entry.fen)
+        val flipped = entry.flipped
+        val hideTheme = prefs.isThemeHiddenInHeader()
+        val themeLabel = PuzzleThemes.labelFor(entry.angle).takeUnless { hideTheme }
+        val headerText = listOfNotNull(
+            "Puzzle ${viewIndex + 1}/${history.size}",
+            themeLabel,
+            entry.rating.takeIf { it > 0 }?.toString()
+        ).joinToString("  •  ")
+
+        paintBoardAndHeader(
+            context, views, appWidgetId, position,
+            selectedSquare = null, flipped,
+            lastMoveFrom = entry.lastMoveFrom, lastMoveTo = entry.lastMoveTo,
+            headerOverride = headerText
+        )
+
+        for (row in 0..7) {
+            for (col in 0..7) {
+                val viewId = context.resources.getIdentifier("cell_${row}_$col", "id", context.packageName)
+                if (viewId == 0) continue
+                val square = squareForCell(row, col, flipped)
+                views.setOnClickPendingIntent(viewId, squareTapPendingIntent(context, appWidgetId, square))
+            }
+        }
+
+        views.setTextViewText(R.id.daily_counter, "Daily: ${PuzzleStatsPrefs(context).todayCount()}")
+        views.setViewVisibility(R.id.daily_counter, View.VISIBLE)
+        paintTurnKingIcon(context, views, position.whiteToMove)
+        views.setViewVisibility(R.id.status_overlay, View.GONE)
+        views.setViewVisibility(R.id.solved_restart_button, View.GONE)
+        views.setViewVisibility(R.id.analyze_button, View.GONE)
+
+        views.setViewVisibility(R.id.settings_gear, View.VISIBLE)
+        val themeConfigIntent = Intent(context, ThemeConfigActivity::class.java).apply {
+            putExtra(WidgetClickReceiver.EXTRA_APPWIDGET_ID, appWidgetId)
+        }
+        views.setOnClickPendingIntent(
+            R.id.settings_gear,
+            PendingIntent.getActivity(
+                context,
+                appWidgetId,
+                themeConfigIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        )
+
+        // Restart/Hint/Solution/move-Back/Forward don't apply to a read-only historical view —
+        // dimmed, and any stale click target left over from another render is a guarded no-op
+        // in WidgetClickReceiver (it checks isBrowsingPuzzleHistory() itself).
+        views.setImageViewBitmap(R.id.restart_button, buildRestartIconBitmap(context, withBackground = false))
+        views.setOnClickPendingIntent(R.id.restart_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_RESTART, 67))
+        views.setImageViewBitmap(R.id.nav_back_button, buildTriangleIconBitmap(context, pointingRight = false, dimmed = true))
+        views.setImageViewBitmap(R.id.nav_forward_button, buildTriangleIconBitmap(context, pointingRight = true, dimmed = true))
+        views.setOnClickPendingIntent(R.id.nav_back_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_NAV_BACK, 69))
+        views.setOnClickPendingIntent(R.id.nav_forward_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_NAV_FORWARD, 70))
+
+        val disabledColor = context.getColor(R.color.nav_button_disabled)
+        views.setTextColor(R.id.hint_button, disabledColor)
+        views.setTextColor(R.id.solution_button, disabledColor)
+        views.setOnClickPendingIntent(R.id.hint_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_HINT, 65))
+        views.setOnClickPendingIntent(R.id.solution_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_SHOW_SOLUTION, 66))
+
+        paintPuzzleNavIcons(context, views, appWidgetId, prevEnabled = viewIndex > 0)
     }
 
     /**
@@ -493,6 +581,21 @@ object WidgetUpdater {
         canvas.drawLine(handleStartX, handleStartY, handleEndX, handleEndY, paint)
 
         return bitmap
+    }
+
+    /**
+     * Puzzle-level Prev/Next, up in the top bar next to the settings gear/Analyze icon — distinct
+     * from [nav_back_button]/[nav_forward_button], which browse moves *within* one puzzle. Next is
+     * always enabled (fetches a new puzzle once there's no history left to step forward through);
+     * Prev is dimmed and inert when there's no past puzzle to go back to yet.
+     */
+    private fun paintPuzzleNavIcons(context: Context, views: RemoteViews, appWidgetId: Int, prevEnabled: Boolean) {
+        views.setViewVisibility(R.id.prev_puzzle_button, View.VISIBLE)
+        views.setViewVisibility(R.id.next_puzzle_button, View.VISIBLE)
+        views.setImageViewBitmap(R.id.prev_puzzle_button, buildTriangleIconBitmap(context, pointingRight = false, dimmed = !prevEnabled))
+        views.setImageViewBitmap(R.id.next_puzzle_button, buildTriangleIconBitmap(context, pointingRight = true, dimmed = false))
+        views.setOnClickPendingIntent(R.id.prev_puzzle_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_PREV_PUZZLE, 72))
+        views.setOnClickPendingIntent(R.id.next_puzzle_button, actionPendingIntent(context, appWidgetId, WidgetClickReceiver.ACTION_NEXT_PUZZLE, 73))
     }
 
     /** Small white/black king icon next to the daily counter, showing whose turn it is at a glance. */

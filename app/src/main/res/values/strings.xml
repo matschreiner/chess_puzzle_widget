@@ -25,6 +25,8 @@
     <string name="hint_button">Hint</string>
     <string name="solution_button">Solution</string>
     <string name="skip_button">Skip</string>
+    <string name="prev_puzzle_button">Prev</string>
+    <string name="next_puzzle_button">Next</string>
     <string name="nav_back_button">Back</string>
     <string name="nav_forward_button">Fwd</string>
 

@@ -80,6 +80,7 @@ class ChessPuzzleWidgetProvider : AppWidgetProvider() {
                 return
             }
 
+            prefs.appendCurrentPuzzleToHistory()
             val boardState = PuzzleBoardState.fromFen(staged.fen, staged.solution)
             prefs.setThemes(staged.themes)
             prefs.setPuzzleId(staged.id)
@@ -110,6 +111,7 @@ class ChessPuzzleWidgetProvider : AppWidgetProvider() {
         /** Unconditionally shows a loading state and fetches a fresh puzzle over the network. */
         fun forceFetch(context: Context, appWidgetId: Int) {
             val prefs = WidgetPuzzlePrefs(context, appWidgetId)
+            prefs.appendCurrentPuzzleToHistory()
             prefs.setStatus(WidgetStatus.LOADING)
             WidgetUpdater.render(context, appWidgetId)
 

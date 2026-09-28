@@ -5,13 +5,29 @@ import com.masc.chesspuzzlewidget.engine.FenParser
 import com.masc.chesspuzzlewidget.engine.PuzzleBoardState
 import com.masc.chesspuzzlewidget.engine.PuzzleStatus
 import com.masc.chesspuzzlewidget.engine.UciMove
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 
 enum class WidgetStatus { NEEDS_LOGIN, LOADING, READY, ERROR }
+
+/** A past puzzle's state as last seen, kept so Previous/Next can browse back to it read-only. */
+@Serializable
+data class PuzzleHistoryEntry(
+    val fen: String,
+    val lastMoveFrom: Int?,
+    val lastMoveTo: Int?,
+    val angle: String,
+    val rating: Int,
+    val flipped: Boolean
+)
 
 /** Per-appWidgetId persisted puzzle state, since the widget process can be killed and recreated at any time. */
 class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
 
     private val prefs = context.getSharedPreferences(prefsName(appWidgetId), Context.MODE_PRIVATE)
+    private val json = Json { ignoreUnknownKeys = true }
+    private val puzzleHistoryListSerializer = ListSerializer(PuzzleHistoryEntry.serializer())
 
     fun status(): WidgetStatus =
         prefs.getString(KEY_STATUS, null)?.let { runCatching { WidgetStatus.valueOf(it) }.getOrNull() }
@@ -351,6 +367,44 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
     }
 
     /**
+     * Past puzzles, oldest first — NOT including whatever puzzle is currently active/live, only
+     * ones already left behind. Lets the Previous/Next footer buttons browse back through them
+     * read-only, same spirit as [historyFens] but one level up (puzzles instead of moves).
+     */
+    fun puzzleHistory(): List<PuzzleHistoryEntry> {
+        val raw = prefs.getString(KEY_PUZZLE_HISTORY, null) ?: return emptyList()
+        return try {
+            json.decodeFromString(puzzleHistoryListSerializer, raw)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** Snapshots whatever puzzle is currently active (if any) onto the end of [puzzleHistory]. */
+    fun appendCurrentPuzzleToHistory() {
+        val boardState = loadBoardState() ?: return
+        val entry = PuzzleHistoryEntry(
+            fen = FenParser.toFen(boardState.position),
+            lastMoveFrom = lastMove()?.first,
+            lastMoveTo = lastMove()?.second,
+            angle = puzzleAngle(),
+            rating = rating(),
+            flipped = isFlipped()
+        )
+        val updated = (puzzleHistory() + entry).takeLast(PUZZLE_HISTORY_LIMIT)
+        prefs.edit().putString(KEY_PUZZLE_HISTORY, json.encodeToString(puzzleHistoryListSerializer, updated)).apply()
+    }
+
+    /** -1 means "at the live puzzle"; 0..puzzleHistory().lastIndex means browsing that past puzzle. */
+    fun puzzleHistoryViewIndex(): Int = prefs.getInt(KEY_PUZZLE_HISTORY_VIEW_INDEX, -1)
+
+    fun setPuzzleHistoryViewIndex(index: Int) {
+        prefs.edit().putInt(KEY_PUZZLE_HISTORY_VIEW_INDEX, index).apply()
+    }
+
+    fun isBrowsingPuzzleHistory(): Boolean = puzzleHistoryViewIndex() >= 0
+
+    /**
      * The sequence of positions actually reached in the live puzzle attempt (index 0 = the
      * puzzle's starting FEN), independent of [setLastMove]'s solving state — lets Back/Forward
      * browse read-only through what's happened so far without touching the live board.
@@ -454,6 +508,9 @@ class WidgetPuzzlePrefs(context: Context, appWidgetId: Int) {
         private const val KEY_STAGED_SETUP_TO = "staged_setup_to"
         private const val KEY_RECENT_IDS = "recent_puzzle_ids"
         private const val RECENT_IDS_LIMIT = 15
+        private const val KEY_PUZZLE_HISTORY = "puzzle_history"
+        private const val KEY_PUZZLE_HISTORY_VIEW_INDEX = "puzzle_history_view_index"
+        private const val PUZZLE_HISTORY_LIMIT = 10
 
         private fun prefsName(appWidgetId: Int) = "widget_puzzle_$appWidgetId"
     }

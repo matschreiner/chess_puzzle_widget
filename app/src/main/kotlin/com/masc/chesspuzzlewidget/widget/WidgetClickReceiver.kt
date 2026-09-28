@@ -38,7 +38,7 @@ class WidgetClickReceiver : BroadcastReceiver() {
             }
             ACTION_HINT -> {
                 val prefs = WidgetPuzzlePrefs(context, appWidgetId)
-                if (!prefs.isAnalyzeModeActive()) {
+                if (!prefs.isAnalyzeModeActive() && !prefs.isBrowsingPuzzleHistory()) {
                     prefs.snapHistoryToLive()
                     prefs.setSolutionRequested(false)
                     prefs.setHintRequested(true)
@@ -48,7 +48,7 @@ class WidgetClickReceiver : BroadcastReceiver() {
             }
             ACTION_SHOW_SOLUTION -> {
                 val prefs = WidgetPuzzlePrefs(context, appWidgetId)
-                if (!prefs.isAnalyzeModeActive()) {
+                if (!prefs.isAnalyzeModeActive() && !prefs.isBrowsingPuzzleHistory()) {
                     prefs.snapHistoryToLive()
                     prefs.setHintRequested(false)
                     prefs.setSolutionRequested(true)
@@ -61,21 +61,23 @@ class WidgetClickReceiver : BroadcastReceiver() {
                 val prefs = WidgetPuzzlePrefs(context, appWidgetId)
                 if (prefs.isAnalyzeModeActive()) {
                     prefs.setAnalyzeHistoryIndex((prefs.analyzeHistoryIndex() - 1).coerceAtLeast(0))
-                } else {
+                    WidgetUpdater.render(context, appWidgetId)
+                } else if (!prefs.isBrowsingPuzzleHistory()) {
                     prefs.setHistoryViewIndex((prefs.historyViewIndex() - 1).coerceAtLeast(0))
+                    WidgetUpdater.render(context, appWidgetId)
                 }
-                WidgetUpdater.render(context, appWidgetId)
             }
             ACTION_NAV_FORWARD -> {
                 val prefs = WidgetPuzzlePrefs(context, appWidgetId)
                 if (prefs.isAnalyzeModeActive()) {
                     val lastIndex = prefs.analyzeHistoryFens().lastIndex.coerceAtLeast(0)
                     prefs.setAnalyzeHistoryIndex((prefs.analyzeHistoryIndex() + 1).coerceAtMost(lastIndex))
-                } else {
+                    WidgetUpdater.render(context, appWidgetId)
+                } else if (!prefs.isBrowsingPuzzleHistory()) {
                     val lastIndex = prefs.historyFens().lastIndex.coerceAtLeast(0)
                     prefs.setHistoryViewIndex((prefs.historyViewIndex() + 1).coerceAtMost(lastIndex))
+                    WidgetUpdater.render(context, appWidgetId)
                 }
-                WidgetUpdater.render(context, appWidgetId)
             }
             ACTION_TOGGLE_ANALYZE -> {
                 val prefs = WidgetPuzzlePrefs(context, appWidgetId)
@@ -83,6 +85,7 @@ class WidgetClickReceiver : BroadcastReceiver() {
                     prefs.exitAnalyzeMode()
                 } else {
                     prefs.snapHistoryToLive()
+                    prefs.setPuzzleHistoryViewIndex(-1)
                     prefs.loadBoardState()?.let { boardState ->
                         // Carry over the real puzzle's own last-move highlight so it doesn't just
                         // vanish the moment analyze mode is entered.
@@ -92,6 +95,34 @@ class WidgetClickReceiver : BroadcastReceiver() {
                     }
                 }
                 WidgetUpdater.render(context, appWidgetId)
+            }
+            ACTION_PREV_PUZZLE -> {
+                val prefs = WidgetPuzzlePrefs(context, appWidgetId)
+                if (prefs.isAnalyzeModeActive()) {
+                    prefs.exitAnalyzeMode()
+                }
+                val history = prefs.puzzleHistory()
+                if (history.isNotEmpty()) {
+                    val current = prefs.puzzleHistoryViewIndex()
+                    val newIndex = if (current < 0) history.lastIndex else (current - 1).coerceAtLeast(0)
+                    prefs.setPuzzleHistoryViewIndex(newIndex)
+                }
+                WidgetUpdater.render(context, appWidgetId)
+            }
+            ACTION_NEXT_PUZZLE -> {
+                val prefs = WidgetPuzzlePrefs(context, appWidgetId)
+                if (prefs.isAnalyzeModeActive()) {
+                    prefs.exitAnalyzeMode()
+                }
+                val current = prefs.puzzleHistoryViewIndex()
+                if (current < 0) {
+                    // Already at the live puzzle — same as the old Skip button.
+                    ChessPuzzleWidgetProvider.requestNextPuzzle(context, appWidgetId)
+                } else {
+                    val lastIndex = prefs.puzzleHistory().lastIndex
+                    prefs.setPuzzleHistoryViewIndex(if (current >= lastIndex) -1 else current + 1)
+                    WidgetUpdater.render(context, appWidgetId)
+                }
             }
         }
     }
@@ -104,6 +135,10 @@ class WidgetClickReceiver : BroadcastReceiver() {
             WidgetUpdater.render(context, appWidgetId)
             return
         }
+
+        // Restart applies to the live puzzle only — a stale click target from before Previous was
+        // pressed shouldn't silently restart it out from under a read-only historical view.
+        if (prefs.isBrowsingPuzzleHistory()) return
 
         val originalFen = prefs.originalFen() ?: return
         val current = prefs.loadBoardState() ?: return
@@ -125,6 +160,14 @@ class WidgetClickReceiver : BroadcastReceiver() {
 
         if (prefs.isAnalyzeModeActive()) {
             handleAnalyzeSquareTap(context, appWidgetId, prefs, square)
+            return
+        }
+
+        // Tapping anywhere while browsing a past puzzle just snaps back to the live one — same
+        // read-only-browse behavior as move history, one level up.
+        if (prefs.isBrowsingPuzzleHistory()) {
+            prefs.setPuzzleHistoryViewIndex(-1)
+            WidgetUpdater.render(context, appWidgetId)
             return
         }
 
@@ -308,6 +351,8 @@ class WidgetClickReceiver : BroadcastReceiver() {
         const val ACTION_NAV_BACK = "com.masc.chesspuzzlewidget.action.NAV_BACK"
         const val ACTION_NAV_FORWARD = "com.masc.chesspuzzlewidget.action.NAV_FORWARD"
         const val ACTION_TOGGLE_ANALYZE = "com.masc.chesspuzzlewidget.action.TOGGLE_ANALYZE"
+        const val ACTION_PREV_PUZZLE = "com.masc.chesspuzzlewidget.action.PREV_PUZZLE"
+        const val ACTION_NEXT_PUZZLE = "com.masc.chesspuzzlewidget.action.NEXT_PUZZLE"
         const val EXTRA_APPWIDGET_ID = "extra_appwidget_id"
         const val EXTRA_SQUARE = "extra_square"
         private const val MOVE_PAUSE_MS = 500L

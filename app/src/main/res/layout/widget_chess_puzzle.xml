@@ -631,6 +631,23 @@
         android:layout_marginEnd="8dp"
         android:orientation="horizontal">
 
+        <!-- Kept declared but unused for now (layout reverted to the plain Skip button) so the
+             Previous/Next puzzle-history code can be reconnected to real buttons later without a
+             rewrite — see WidgetUpdater.paintPuzzleNavIcons / renderPuzzleHistoryView. -->
+        <ImageView
+            android:id="@+id/prev_puzzle_button"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:contentDescription="@string/prev_puzzle_button"
+            android:visibility="gone" />
+
+        <ImageView
+            android:id="@+id/next_puzzle_button"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:contentDescription="@string/next_puzzle_button"
+            android:visibility="gone" />
+
         <ImageView
             android:id="@+id/analyze_button"
             android:layout_width="28dp"
